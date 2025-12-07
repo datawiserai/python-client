@@ -1,0 +1,20 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "datawiserai"
+version = "0.0.1"
+description = "Official Python client for the Datawiser API (placeholder package)."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "Proprietary" }
+authors = [
+  { name = "Datawiser", email = "founder@datawiser.ai" }
+]
+dependencies = []
+
+[project.urls]
+Homepage = "https://datawiser.ai"
+Documentation = "https://datawiser.ai/api"
+Source = "https://github.com/datawiserai/python-client"

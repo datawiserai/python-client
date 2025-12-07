@@ -1,6 +1,0 @@
-[project]
-name = "datawiserai"
-version = "0.0.1"
-description = "Placeholder package for the Datawiser Python client."
-authors = [{ name="Datawiser", email="founder@datawiser.ai" }]
-requires-python = ">=3.8"
