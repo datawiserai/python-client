@@ -1,6 +1,10 @@
 # datawiserai
 
-Official Python client for the [Datawiser API](https://api.datawiser.ai).
+
+Official Python client for the [datawiser API](https://api.datawiser.ai).
+
+Full documentation and API usage guide: [datawiser.ai/api](https://datawiser.ai/api)
+
 
 ## Installation
 
