@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import date
-from typing import Any, Optional, Sequence
+from typing import Any, List, Optional, Sequence, Union
 
 
 # ---------------------------------------------------------------------------
@@ -229,8 +229,234 @@ class FreeFloatEvents:
 
 
 # ---------------------------------------------------------------------------
-# Full / drill-down view  (preserves entire nested structure)
+# Full / drill-down view  (typed nested structure)
 # ---------------------------------------------------------------------------
+
+@dataclass
+class Component:
+    """One sub-component within an owner's components list."""
+
+    event_mask: int
+    rel_type: str
+    shares: float
+    delta_shares: float
+    source_event: str
+    id: str
+    event_id: str
+    is_parent_event: bool
+    possible_shared_ownership: bool
+    reconciled: bool
+    is_ben_owner_exclusion: bool
+    is_cross_holding: bool
+    retained_from: List[Any]
+    incomplete_event_retained: bool
+    nature_of_ownership: Optional[str] = None
+    entity: Optional[str] = None
+
+    @classmethod
+    def _from_dict(cls, d: dict[str, Any]) -> Component:
+        return cls(
+            event_mask=d.get("eventMask", 0),
+            rel_type=d.get("relType", ""),
+            shares=d.get("shares", 0.0),
+            delta_shares=d.get("deltaShares", 0.0),
+            source_event=d.get("sourceEvent", ""),
+            id=d.get("id", ""),
+            event_id=d.get("eventId", ""),
+            is_parent_event=d.get("isParentEvent", False),
+            possible_shared_ownership=d.get("possibleSharedOwnership", False),
+            reconciled=d.get("reconciled", False),
+            is_ben_owner_exclusion=d.get("isBenOwnerExclusion", False),
+            is_cross_holding=d.get("isCrossHolding", False),
+            retained_from=d.get("retainedFrom", []),
+            incomplete_event_retained=d.get("incompleteEventRetained", False),
+            nature_of_ownership=d.get("natureOfOwnership"),
+            entity=d.get("entity"),
+        )
+
+
+@dataclass
+class Restriction:
+    """One restriction within an owner's restrictions list."""
+
+    event_mask: int
+    rel_type: str
+    shares: float
+    delta_shares: float
+    source_event: str
+    id: str
+    event_id: str
+    is_parent_event: bool
+    is_oversized_shares: bool
+    possible_shared_ownership: bool
+    reconciled: bool
+    is_ben_owner_exclusion: bool
+    is_cross_holding: bool
+    retained_from: List[Any]
+    incomplete_event_retained: bool
+    reason: Optional[List[str]] = None
+    included_in_total: Optional[bool] = None
+    restriction_type: Optional[str] = None
+
+    @classmethod
+    def _from_dict(cls, d: dict[str, Any]) -> Restriction:
+        return cls(
+            event_mask=d.get("eventMask", 0),
+            rel_type=d.get("relType", ""),
+            shares=d.get("shares", 0.0),
+            delta_shares=d.get("deltaShares", 0.0),
+            source_event=d.get("sourceEvent", ""),
+            id=d.get("id", ""),
+            event_id=d.get("eventId", ""),
+            is_parent_event=d.get("isParentEvent", False),
+            is_oversized_shares=d.get("isOversizedShares", False),
+            possible_shared_ownership=d.get("possibleSharedOwnership", False),
+            reconciled=d.get("reconciled", False),
+            is_ben_owner_exclusion=d.get("isBenOwnerExclusion", False),
+            is_cross_holding=d.get("isCrossHolding", False),
+            retained_from=d.get("retainedFrom", []),
+            incomplete_event_retained=d.get("incompleteEventRetained", False),
+            reason=d.get("reason"),
+            included_in_total=d.get("includedInTotal"),
+            restriction_type=d.get("restrictionType"),
+        )
+
+
+@dataclass
+class Option:
+    """One option within an owner's options list."""
+
+    event_mask: Optional[int] = None
+    rel_type: Optional[str] = None
+    shares: Optional[float] = None
+    delta_shares: Optional[float] = None
+    source_event: Optional[str] = None
+    id: Optional[str] = None
+    event_id: Optional[str] = None
+    raw: Optional[dict[str, Any]] = field(default=None, repr=False)
+
+    @classmethod
+    def _from_dict(cls, d: dict[str, Any]) -> Option:
+        return cls(
+            event_mask=d.get("eventMask"),
+            rel_type=d.get("relType"),
+            shares=d.get("shares"),
+            delta_shares=d.get("deltaShares"),
+            source_event=d.get("sourceEvent"),
+            id=d.get("id"),
+            event_id=d.get("eventId"),
+            raw=d,
+        )
+
+
+@dataclass
+class EventDetails:
+    """Event details for an owner (e.g. form type, transaction code)."""
+
+    form_type: Optional[str] = None
+    ir_type: Optional[str] = None
+    notes: Optional[str] = None
+    rel_type: Optional[str] = None
+    file_source: Optional[str] = None
+    transaction_date: Optional[str] = None
+    shares_owned_post: Optional[float] = None
+    delta_shares: Optional[float] = None
+    shares: Optional[float] = None
+    possible_shared_ownership: Optional[bool] = None
+    instrument_type: Optional[str] = None
+    instrument_subtype: Optional[str] = None
+    is_officer: Optional[bool] = None
+    zero_shares_verified: Optional[bool] = None
+    llm_sourced: Optional[bool] = None
+    raw: Optional[dict[str, Any]] = field(default=None, repr=False)
+
+    @classmethod
+    def _from_dict(cls, d: dict[str, Any] | None) -> Optional[EventDetails]:
+        if not d:
+            return None
+
+        return cls(
+            form_type=d.get("formType"),
+            ir_type=d.get("irType"),
+            notes=d.get("notes"),
+            rel_type=d.get("relType"),
+            file_source=d.get("fileSource"),
+            transaction_date=d.get("transactionDate"),
+            shares_owned_post=d.get("sharesOwnedPost"),
+            delta_shares=d.get("deltaShares"),
+            shares=d.get("shares"),
+            possible_shared_ownership=d.get("possibleSharedOwnership"),
+            is_officer=d.get("isOfficer"),
+            zero_shares_verified=d.get("zeroSharesVerified"),
+            llm_sourced=d.get("llmSourced"),
+            instrument_type=d.get("instrumentType"),
+            instrument_subtype=d.get("instrumentSubtype"),
+            raw=d,
+        )
+
+
+@dataclass
+class OwnerDetail:
+    """Full detail for one owner on an event date.
+
+    Attributes
+    ----------
+    components : List[Component]
+        Nested sub-components.
+    restrictions : List[Restriction]
+        Restrictions (e.g. restricted stock).
+    options : List[Option]
+        Option-related entries.
+    event_details : EventDetails or None
+        Form/transaction event details.
+    """
+
+    as_of: date
+    owner_identity_id: str
+    shares: float
+    event_mask: int
+    entity_type: str
+    delta_shares: float
+    rel_type: str
+    name: str
+    components: List[Component] = field(default_factory=list)
+    restrictions: List[Restriction] = field(default_factory=list)
+    options: List[Option] = field(default_factory=list)
+    event_details: Optional[EventDetails] = None
+    filing_date: Optional[str] = None
+    source_event: Optional[str] = None
+    event_id: Optional[str] = None
+    incomplete_event: bool = False
+    source_spans_dates: bool = False
+    is_officer: bool = False
+    is_extra_owner: bool = False
+    is_new_owner: bool = False
+
+    @classmethod
+    def _from_dict(cls, owner_id: str, d: dict[str, Any]) -> OwnerDetail:
+        return cls(
+            as_of=date.fromisoformat(d["asOf"]) if d.get("asOf") else date(1970, 1, 1),
+            owner_identity_id=owner_id,
+            shares=d.get("shares", 0.0),
+            event_mask=d.get("eventMask", 0),
+            entity_type=d.get("entityType", ""),
+            delta_shares=d.get("deltaShares", 0.0),
+            rel_type=d.get("relType", ""),
+            name=d.get("name", ""),
+            components=[Component._from_dict(c) for c in d.get("components", [])],
+            restrictions=[Restriction._from_dict(r) for r in d.get("restrictions", [])],
+            options=[Option._from_dict(o) for o in d.get("options", [])],
+            event_details=EventDetails._from_dict(d.get("eventDetails")),
+            filing_date=d.get("filingDate"),
+            source_event=d.get("sourceEvent"),
+            event_id=d.get("id"),
+            incomplete_event=d.get("incompleteEvent", False),
+            source_spans_dates=d.get("sourceSpansDates", False),
+            is_officer=d.get("isOfficer", False),
+            is_extra_owner=d.get("isExtraOwner", False),
+            is_new_owner=d.get("isNewOwner", False),
+        )
+
 
 @dataclass
 class FreeFloatEventDetail:
@@ -241,25 +467,43 @@ class FreeFloatEventDetail:
     as_of : date
         The event date.
     security_id : str
-    components : dict[str, dict]
-        Keyed by ``ownerIdentityId``.  Each value is the raw JSON dict
-        for that owner **including** nested ``components``, ``restrictions``,
-        ``options``, and ``eventDetails``.
+    components : dict[str, OwnerDetail]
+        Keyed by ``ownerIdentityId``.  Each value is a typed :class:`OwnerDetail`
+        with :attr:`OwnerDetail.components`, :attr:`OwnerDetail.restrictions`,
+        :attr:`OwnerDetail.options`, and :attr:`OwnerDetail.event_details`.
     raw : dict
-        The original top-level event dict.
+        The original top-level event dict (for backward compatibility).
     """
 
     as_of: date
     security_id: str
-    components: dict[str, dict] = field(repr=False)
-    raw: dict = field(repr=False)
+    components: dict[str, OwnerDetail] = field(repr=False)
+    shares_out: float = 0.0
+    ff_factor: float = 0.0
+    excluded_shares: float = 0.0
+    delta_shares: float = 0.0
+    delta_ff_factor: float = 0.0
+    is_rebal: bool = False
+    delta: dict[str, dict[str, Union[float, str]]] = field(default_factory=dict)
+    raw: dict = None
 
     @classmethod
     def _from_dict(cls, d: dict[str, Any]) -> FreeFloatEventDetail:
+        comps = d.get("components", {})
         return cls(
             as_of=date.fromisoformat(d["asOf"]),
             security_id=d.get("securityId", ""),
-            components=d.get("components", {}),
+            components={
+                oid: OwnerDetail._from_dict(oid, c)
+                for oid, c in comps.items()
+            },
+            shares_out=d.get("sharesOut", 0.0),
+            ff_factor=d.get("ffFactor", 0.0),
+            excluded_shares=d.get("excludedShares", 0.0),
+            delta_shares=d.get("deltaShares", 0.0),
+            delta_ff_factor=d.get("deltaFfFactor", 0.0),
+            delta=d.get("delta", {}),
+            is_rebal=d.get("isRebalanced", False),
             raw=d,
         )
 
@@ -270,14 +514,22 @@ class FreeFloatEventDetail:
     @property
     def owner_names(self) -> dict[str, str]:
         """Mapping of ``ownerIdentityId`` → display name."""
-        return {
-            oid: c.get("name", "")
-            for oid, c in self.components.items()
-        }
+        return {oid: owner.name for oid, owner in self.components.items()}
 
-    def owner(self, owner_id: str) -> dict[str, Any]:
-        """Return the full raw dict for a single owner."""
+    def owner(self, owner_id: str) -> OwnerDetail:
+        """Return the typed :class:`OwnerDetail` for a single owner."""
         return self.components[owner_id]
+
+    def owner_from_name(self, name: str) -> OwnerDetail:
+        return next(owner for owner in self.components.values() if owner.name == name)
+        raise ValueError(f"No owner found with name {name}")
+
+    def owner_delta(self, owner_id: str) -> dict[str, Union[float, str]]:
+        owner_delta = {}
+        for key, value in self.delta.items():
+            if owner_id in value:
+                owner_delta[key] = value[owner_id]
+        return owner_delta
 
 
 @dataclass
@@ -293,10 +545,11 @@ class FreeFloatEventsDetail:
         detail.dates                        # list of event dates
         ev = detail[0]                      # FreeFloatEventDetail for first date
         ev.owner_names                      # {id: "Smith John", ...}
-        ev.owner("OLPzC085ekEKV")           # full raw dict for that owner
-        ev.owner("OLPzC085ekEKV")["components"]      # nested sub-components
-        ev.owner("OLPzC085ekEKV")["restrictions"]     # nested restrictions
-        ev.owner("OLPzC085ekEKV")["eventDetails"]     # nested event details
+        owner = ev.owner("OLPzC085ekEKV")   # OwnerDetail
+        owner.components                    # List[Component]
+        owner.restrictions                 # List[Restriction]
+        owner.options                      # List[Option]
+        owner.event_details                # EventDetails or None
     """
 
     ticker: str
