@@ -125,7 +125,7 @@ print(
 ```
 
 ```text
- MacKenzie Scott                      shares=112,032,131.00  components=1 delta={'diff': -72250000.0, 'src': 'proxystatement|2024-04-11|AMZ3JVbI_rq|AMZ3JVbI_rq->proxystatement|2025-04-10|AMZ3JB_Pkym|AMZ3JB_Pkym'}
+ MacKenzie Scott  shares=112,032,131.00  components=1 delta={'diff': -72250000.0, 'src': 'proxystatement|2024-04-11|AMZ3JVbI_rq|AMZ3JVbI_rq->proxystatement|2025-04-10|AMZ3JB_Pkym|AMZ3JB_Pkym'}
 ```
 
 This kind of attribution (owner-level delta + provenance across specific source filings) is what makes the event stream auditable - even when the underlying disclosure only appears in an annual proxy footnote.
