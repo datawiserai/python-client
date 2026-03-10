@@ -217,6 +217,32 @@ print(owner.event_details.notes)
 ```
 
 
+### Example: pledged founder collateral and float treatment (ORCL)
+
+A useful contrast to the TSLA examples is **Oracle (ORCL)**, where the proxy discloses that founder **Larry Ellison** has pledged a large block of shares as collateral for personal indebtedness. The proxy beneficial ownership table reports Ellison's total holdings and notes the pledged portion in a footnote. In contrast to the TSLA cases above, the key methodological question is whether those pledged shares should be considered part of free‑float.
+
+Our methodology focuses first on whether a holder represents **founder or strategic control**. When a founder holds a large controlling block, we treat the entire position as excluded from free‑float regardless of whether some shares are pledged as collateral. Under this policy, Ellison's holdings in ORCL are treated as a strategic founder block and therefore excluded in full; the pledge disclosure is informative but does not change the float classification.
+
+For comparison, Tesla (TSLA) includes proxy footnotes describing pledged collateral for Elon Musk. In our dataset those disclosures appear in the extracted **component notes** attached to the relevant owner components. The important distinction is that TSLA does not present a single controlling founder block in the same way as ORCL, so the treatment depends on the specific ownership mechanics disclosed in the filings rather than on a blanket founder-control rule.
+
+Our approach therefore applies the same policy consistently: where a holder represents founder or strategic control (as with Ellison in ORCL) the entire block is excluded, whereas other insider-linked positions (such as those visible in TSLA filings) are evaluated based on the legal and economic characteristics described in the underlying disclosures. This framework also happens to produce results broadly consistent with how many major market data vendors classify ORCL versus TSLA.
+
+You can still inspect the event stream in the same way as the TSLA examples:
+
+```python
+TICKER = "ORCL"
+
+# Fetch event summary
+summary = client.free_float_events(TICKER).to_event_summary_dataframe()
+print(summary.head())
+
+# Inspect detailed events
+for ev in client.free_float_events_detail(TICKER)[:3]:
+    print(ev.as_of, ev.delta)
+```
+
+In the ORCL case, changes in the excluded share numerator are more likely to come from ownership updates visible in proxy disclosures rather than from collateral status itself. This illustrates an important methodological distinction: **pledging may be visible in proxy footnotes, but float treatment often depends more on whether the holder is classified as a strategic founder or controlling insider.**
+
 ## Available endpoints
 
 | Method | Endpoint | Returns |
