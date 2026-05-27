@@ -4,13 +4,13 @@ build-backend = "hatchling.build"
 
 [project]
 name = "datawiserai"
-version = "0.1.6"
-description = "Official Python client for the Datawiser API."
+version = "0.2.0"
+description = "Official Python client for the datawiser API."
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "Proprietary" }
 authors = [
-  { name = "Datawiser", email = "founder@datawiser.ai" }
+  { name = "datawiser", email = "support@datawiser.ai" }
 ]
 dependencies = [
   "requests>=2.28",
