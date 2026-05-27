@@ -8,6 +8,9 @@ Usage:
 
 import os
 import datawiserai as dw
+from dotenv import load_dotenv
+
+load_dotenv()
 
 API_KEY = os.environ["DATAWISER_API_KEY"]
 TICKER = "OLP"

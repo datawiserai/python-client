@@ -1,8 +1,70 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import date
 from typing import Any, List, Optional, Sequence, Union
+
+FF_EVENTS_EVENT_FORMAT = "free_float_events_delta_v1"
+FF_EVENTS_EVENT_SORT = "as_of_ascending"
+
+DEFAULT_DELTA_FIELDS = {
+    "components": "componentDeletes",
+    "ownerIdentitiesMap": "ownerIdentityDeletes",
+    "knownCrossHoldings": "knownCrossHoldingDeletes",
+}
+
+
+def expand_free_float_events_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """Expand a free-float-events seed-plus-delta payload.
+
+    Older payloads without ``eventFormat`` are returned as already-expanded
+    snapshots.  Delta payloads are replayed in ascending ``asOf`` order, because
+    the first event is the seed for the exported window and later events carry
+    only changed mapping entries plus explicit deletes.
+    """
+    if payload.get("eventFormat") != FF_EVENTS_EVENT_FORMAT:
+        # NOTE: this check will be removed at a later release when the old format is discontinued
+        return {**payload, "events": deepcopy(payload.get("events") or [])}
+
+    event_sort = payload.get("eventSort") or FF_EVENTS_EVENT_SORT
+    if event_sort != FF_EVENTS_EVENT_SORT:
+        raise ValueError(f"Unsupported free-float-events eventSort: {event_sort}")
+
+    delta_fields = payload.get("deltaFields") or DEFAULT_DELTA_FIELDS
+    state = {field: {} for field in delta_fields}
+    expanded_events = []
+
+    events = sorted(payload.get("events") or [], key=lambda ev: ev.get("asOf", ""))
+    for event in events:
+        expanded = dict(event)
+
+        for field, delete_field in delta_fields.items():
+            for key in event.get(delete_field) or []:
+                state[field].pop(key, None)
+
+            for key, value in (event.get(field) or {}).items():
+                state[field][key] = deepcopy(value)
+
+            expanded[field] = deepcopy(state[field])
+            expanded.pop(delete_field, None)
+
+        expanded_events.append(expanded)
+
+    full_payload = {
+        key: value
+        for key, value in payload.items()
+        if key not in {"eventFormat", "eventSort", "deltaFields"}
+    }
+    return {**full_payload, "events": expanded_events}
+
+
+def _expanded_events_for_client(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    expanded = expand_free_float_events_payload(payload)
+    events = list(expanded.get("events") or [])
+    if payload.get("eventFormat") == FF_EVENTS_EVENT_FORMAT:
+        events.reverse()
+    return events
 
 
 # ---------------------------------------------------------------------------
@@ -120,7 +182,7 @@ class FreeFloatEvents:
     def _from_dict(cls, d: dict[str, Any]) -> FreeFloatEvents:
         event_summaries_list: list[FreeFloatEventSummary] = []
         owner_summaries: list[FreeFloatOwnerSummary] = []
-        for ev in d.get("events", []):
+        for ev in _expanded_events_for_client(d):
             ev_date = date.fromisoformat(ev["asOf"])
             event_summaries_list.append(FreeFloatEventSummary._from_event(ev))
             for owner_id, comp in ev.get("components", {}).items():
@@ -563,7 +625,7 @@ class FreeFloatEventsDetail:
             security_id=d["securityId"],
             events=tuple(
                 FreeFloatEventDetail._from_dict(ev)
-                for ev in d.get("events", [])
+                for ev in _expanded_events_for_client(d)
             ),
         )
 

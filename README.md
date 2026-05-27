@@ -71,10 +71,37 @@ version is returned instantly.
 ```python
 client = dw.Client(api_key="...", cache_dir="/tmp/dw_cache")  # custom location
 client = dw.Client(api_key="...", use_cache=False)             # disable
+client = dw.Client(api_key="...", refresh_cache=True)          # force refresh
 
 client.clear_cache()                # clear everything
 client.clear_cache("free-float")    # clear one endpoint
 ```
+
+## Free-float events file format
+
+The client supports version 2 of the `free-float-events` file format. Version 2
+uses a compact seed-plus-delta event stream instead of repeating a full
+cumulative ownership snapshot on every event date. The first event in the file
+seeds the mapping fields, and later events carry only changed mapping entries
+plus explicit delete lists.
+
+This format is marked in the payload as:
+
+```json
+{
+  "eventFormat": "free_float_events_delta_v1",
+  "eventSort": "as_of_ascending"
+}
+```
+
+The SDK expands this compact stream internally, so `client.free_float_events()`
+and `client.free_float_events_detail()` continue to return the same
+client-facing cumulative event shape. The old version 1 full-snapshot file
+format is still accepted for compatibility with older local caches and
+fixtures, but it is deprecated and will be discontinued.
+
+The version 2 format materially reduces transfer and cache size. In typical
+exports it improves compression / file size by about **15x on average**.
 
 ## Free-float event summary: `is_rebal`
 

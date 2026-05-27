@@ -43,7 +43,11 @@ class Client:
         Where to store cached responses.  Defaults to
         ``~/.datawiserai/cache``.
     use_cache : bool
-        Set to *False* to bypass the local cache entirely.
+        Set to *False* to bypass cache reads and writes. If
+        ``refresh_cache=True`` is also set, fresh responses are still written.
+    refresh_cache : bool
+        Set to *True* to fetch fresh API responses and overwrite cached files.
+        This skips cache reads even when a matching cached response exists.
     """
 
     def __init__(
@@ -52,10 +56,12 @@ class Client:
         *,
         cache_dir: Union[str, Path, None] = None,
         use_cache: bool = True,
+        refresh_cache: bool = False,
     ) -> None:
         self._api_key = api_key
         self._transport = Transport(api_key)
         self._use_cache = use_cache
+        self._refresh_cache = refresh_cache
         self._cache = FileCache(
             Path(cache_dir) if cache_dir else _DEFAULT_CACHE_DIR
         )
@@ -77,7 +83,7 @@ class Client:
 
         remote_ts = entry["last_update"]
 
-        if self._use_cache:
+        if self._use_cache and not self._refresh_cache:
             cached_data, cached_ts = self._cache.get(endpoint, ticker)
             if cached_data is not None and cached_ts == remote_ts:
                 logger.debug(
@@ -90,7 +96,7 @@ class Client:
 
         data = self._transport.get(endpoint, ticker)
 
-        if self._use_cache:
+        if self._use_cache or self._refresh_cache:
             self._cache.put(endpoint, ticker, data, remote_ts)
             logger.debug("cached %s/%s (last_update=%s)", endpoint, ticker, remote_ts)
 

@@ -37,7 +37,11 @@ class FileCache:
             with gzip.open(path, "rt", encoding="utf-8") as f:
                 entry = json.load(f)
             return entry["data"], entry["last_update"]
-        except (json.JSONDecodeError, KeyError, OSError):
+        except (EOFError, json.JSONDecodeError, KeyError, OSError):
+            try:
+                path.unlink()
+            except OSError:
+                pass
             return None, None
 
     def put(
