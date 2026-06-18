@@ -23,3 +23,18 @@ class TickerNotFoundError(DatawiserError):
         super().__init__(
             f"Ticker '{ticker}' not found in the '{endpoint}' manifest"
         )
+
+
+class AmbiguousTickerError(DatawiserError):
+    """Raised when a ticker cannot resolve to one active manifest entry."""
+
+    def __init__(self, ticker: str, endpoint: str, matches: list[str]) -> None:
+        self.ticker = ticker
+        self.endpoint = endpoint
+        self.matches = matches
+        match_list = ", ".join(matches)
+        super().__init__(
+            f"Ticker '{ticker}' does not resolve to exactly one active security "
+            f"in the '{endpoint}' manifest. Matching manifest keys: {match_list}. "
+            "Use a security_id instead."
+        )

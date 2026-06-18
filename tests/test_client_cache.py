@@ -11,7 +11,7 @@ SRC_DIR = PROJECT_ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from datawiserai import Client
+from datawiserai import AmbiguousTickerError, Client
 
 
 class FakeTransport:
@@ -83,6 +83,214 @@ def test_corrupt_cache_file_is_treated_as_miss_and_rewritten():
         assert data["securityId"] == "ABCsec"
         assert cached["data"]["securityId"] == "ABCsec"
         assert transport.get_calls == 1
+
+
+class ManifestTransport:
+    def __init__(self, manifest):
+        self.manifest = manifest
+        self.get_calls = []
+
+    def get_manifest(self, endpoint: str):
+        return self.manifest
+
+    def get(self, endpoint: str, ticker: str):
+        self.get_calls.append((endpoint, ticker))
+        return {"ticker": ticker, "securityId": ticker, "events": []}
+
+
+def test_fetch_resolves_manifest_entry_by_ticker_field_when_key_is_not_ticker():
+    with TemporaryDirectory() as tmp:
+        manifest = {
+            "META-METAJYotTYL": {
+                "ticker": "META",
+                "security_id": "METAJYotTYL",
+                "export_stem": "META-METAJYotTYL",
+                "last_update": "remote-1",
+            }
+        }
+        transport = ManifestTransport(manifest)
+        client = Client("test-key", cache_dir=Path(tmp))
+        client._transport = transport
+
+        data = client._fetch("free-float", "META")
+
+        assert data["ticker"] == "META-METAJYotTYL"
+        assert transport.get_calls == [("free-float", "META-METAJYotTYL")]
+
+
+def test_fetch_defaults_to_active_security_when_ticker_has_delisted_match():
+    with TemporaryDirectory() as tmp:
+        manifest = {
+            "META-old": {
+                "ticker": "META",
+                "security_id": "META-old",
+                "export_stem": "META-old",
+                "is_delisted": True,
+                "last_update": "remote-old",
+            },
+            "META-new": {
+                "ticker": "META",
+                "security_id": "META-new",
+                "export_stem": "META-new",
+                "last_update": "remote-new",
+            },
+        }
+        transport = ManifestTransport(manifest)
+        client = Client("test-key", cache_dir=Path(tmp))
+        client._transport = transport
+
+        resolved_ticker, entry = client._resolve_manifest_entry(
+            "free-float", manifest, "META"
+        )
+        data = client._fetch("free-float", "META")
+
+        assert resolved_ticker == "META-new"
+        assert entry["security_id"] == "META-new"
+        assert data["ticker"] == "META-new"
+        assert transport.get_calls == [("free-float", "META-new")]
+
+
+def test_fetch_ignores_full_qc_entries_when_resolving_ticker_default():
+    with TemporaryDirectory() as tmp:
+        manifest = {
+            "META-META-new": {
+                "ticker": "META",
+                "security_id": "META-new",
+                "export_file": "META-META-new.json.gz",
+                "export_stem": "META-META-new",
+                "last_update": "remote-new",
+            },
+            "META-META-new-full": {
+                "ticker": "META",
+                "security_id": "META-new",
+                "export_file": "META-META-new-full.json.gz",
+                "export_stem": "META-META-new-full",
+                "last_update": "remote-new",
+            },
+        }
+        transport = ManifestTransport(manifest)
+        client = Client("test-key", cache_dir=Path(tmp))
+        client._transport = transport
+
+        resolved_ticker, entry = client._resolve_manifest_entry(
+            "free-float-events", manifest, "META"
+        )
+        data = client._fetch("free-float-events", "META")
+
+        assert resolved_ticker == "META-META-new"
+        assert entry["export_file"] == "META-META-new.json.gz"
+        assert data["ticker"] == "META-META-new"
+        assert transport.get_calls == [("free-float-events", "META-META-new")]
+
+
+def test_fetch_allows_exact_security_id_for_delisted_security():
+    with TemporaryDirectory() as tmp:
+        manifest = {
+            "META-old": {
+                "ticker": "META",
+                "security_id": "META-old",
+                "is_delisted": True,
+                "last_update": "remote-old",
+            },
+            "META-new": {
+                "ticker": "META",
+                "security_id": "META-new",
+                "last_update": "remote-new",
+            },
+        }
+        transport = ManifestTransport(manifest)
+        client = Client("test-key", cache_dir=Path(tmp))
+        client._transport = transport
+
+        data = client._fetch("free-float", "META-old")
+
+        assert data["ticker"] == "META-old"
+        assert transport.get_calls == [("free-float", "META-old")]
+
+
+def test_fetch_canonicalizes_exact_ticker_alias_to_export_stem():
+    with TemporaryDirectory() as tmp:
+        manifest = {
+            "META": {
+                "ticker": "META",
+                "security_id": "META-new",
+                "export_stem": "META-META-new",
+                "last_update": "remote-new",
+            },
+            "META-new": {
+                "ticker": "META",
+                "security_id": "META-new",
+                "export_stem": "META-META-new",
+                "last_update": "remote-new",
+            },
+            "META-META-new": {
+                "ticker": "META",
+                "security_id": "META-new",
+                "export_stem": "META-META-new",
+                "last_update": "remote-new",
+            },
+        }
+        transport = ManifestTransport(manifest)
+        client = Client("test-key", cache_dir=Path(tmp))
+        client._transport = transport
+
+        data = client._fetch("free-float-events", "META")
+
+        assert data["ticker"] == "META-META-new"
+        assert transport.get_calls == [("free-float-events", "META-META-new")]
+
+
+def test_fetch_canonicalizes_exact_security_id_alias_to_export_stem():
+    with TemporaryDirectory() as tmp:
+        manifest = {
+            "META-new": {
+                "ticker": "META",
+                "security_id": "META-new",
+                "export_stem": "META-META-new",
+                "last_update": "remote-new",
+            },
+            "META-META-new": {
+                "ticker": "META",
+                "security_id": "META-new",
+                "export_stem": "META-META-new",
+                "last_update": "remote-new",
+            },
+        }
+        transport = ManifestTransport(manifest)
+        client = Client("test-key", cache_dir=Path(tmp))
+        client._transport = transport
+
+        data = client._fetch("free-float-events", "META-new")
+
+        assert data["ticker"] == "META-META-new"
+        assert transport.get_calls == [("free-float-events", "META-META-new")]
+
+
+def test_fetch_raises_for_multiple_active_matches_for_same_ticker():
+    with TemporaryDirectory() as tmp:
+        manifest = {
+            "META-one": {
+                "ticker": "META",
+                "security_id": "META-one",
+                "last_update": "remote-1",
+            },
+            "META-two": {
+                "ticker": "META",
+                "security_id": "META-two",
+                "last_update": "remote-2",
+            },
+        }
+        client = Client("test-key", cache_dir=Path(tmp))
+        client._transport = ManifestTransport(manifest)
+
+        try:
+            client._fetch("free-float", "META")
+        except AmbiguousTickerError as exc:
+            assert exc.ticker == "META"
+            assert exc.endpoint == "free-float"
+            assert exc.matches == ["META-one", "META-two"]
+        else:
+            raise AssertionError("Expected AmbiguousTickerError")
 
 
 def _run_direct():

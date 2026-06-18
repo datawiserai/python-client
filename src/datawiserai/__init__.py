@@ -1,7 +1,12 @@
 """Datawiser Python SDK — read-only access to the Datawiser API."""
 
 from .client import Client, ENDPOINTS
-from ._exceptions import DatawiserAPIError, DatawiserError, TickerNotFoundError
+from ._exceptions import (
+    AmbiguousTickerError,
+    DatawiserAPIError,
+    DatawiserError,
+    TickerNotFoundError,
+)
 from .models.free_float import FreeFloat, FreeFloatEvent
 from .models.free_float_events import (
     Component,
@@ -21,6 +26,7 @@ from .models.universe import Universe, UniverseEntry
 
 __all__ = [
     "Client",
+    "AmbiguousTickerError",
     "CompanyInfo",
     "Component",
     "DatawiserAPIError",

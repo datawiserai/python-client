@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Union
+from typing import Any, Union
 
 from ._cache import FileCache
-from ._exceptions import TickerNotFoundError
+from ._exceptions import AmbiguousTickerError, TickerNotFoundError
 from ._transport import Transport
 from .models.free_float import FreeFloat
 from .models.free_float_events import FreeFloatEvents, FreeFloatEventsDetail
@@ -30,6 +30,38 @@ _ALIAS = {ep.replace("-", "_"): ep for ep in ENDPOINTS}
 def _resolve_endpoint(name: str) -> str:
     """Accept both ``'free-float'`` and ``'free_float'``."""
     return _ALIAS.get(name, name)
+
+
+def _manifest_entry_identity(key: str, entry: dict[str, Any]) -> tuple[str, str]:
+    export_file = entry.get("export_file")
+    if export_file:
+        return ("export_file", export_file)
+
+    security_id = entry.get("security_id")
+    if security_id:
+        return ("security_id", security_id)
+
+    return ("manifest_key", key)
+
+
+def _is_full_export_entry(key: str, entry: dict[str, Any]) -> bool:
+    export_file = entry.get("export_file", "")
+    export_stem = entry.get("export_stem", "")
+    return (
+        export_file.endswith("-full.json.gz")
+        or export_file.endswith("-full.json")
+        or export_stem.endswith("-full")
+        or key.endswith("-full")
+    )
+
+
+def _manifest_fetch_key(
+    manifest: dict[str, Any], key: str, entry: dict[str, Any]
+) -> str:
+    export_stem = entry.get("export_stem")
+    if export_stem and export_stem in manifest:
+        return export_stem
+    return key
 
 
 class Client:
@@ -73,14 +105,46 @@ class Client:
     def _get_manifest(self, endpoint: str) -> dict:
         return self._transport.get_manifest(endpoint)
 
+    def _resolve_manifest_entry(
+        self, endpoint: str, manifest: dict[str, Any], ticker: str
+    ) -> tuple[str, dict[str, Any]]:
+        entry = manifest.get(ticker)
+        if entry is not None:
+            return _manifest_fetch_key(manifest, ticker, entry), entry
+
+        matches = [
+            (key, val)
+            for key, val in manifest.items()
+            if isinstance(val, dict) and val.get("ticker") == ticker
+        ]
+        if not matches:
+            raise TickerNotFoundError(ticker, endpoint)
+
+        active_matches = [
+            (key, val)
+            for key, val in matches
+            if not val.get("is_delisted", False)
+            and not _is_full_export_entry(key, val)
+        ]
+        unique_active: dict[tuple[str, str], tuple[str, dict[str, Any]]] = {}
+        for key, val in active_matches:
+            unique_active.setdefault(_manifest_entry_identity(key, val), (key, val))
+
+        if len(unique_active) == 1:
+            key, entry = next(iter(unique_active.values()))
+            return _manifest_fetch_key(manifest, key, entry), entry
+
+        raise AmbiguousTickerError(
+            ticker,
+            endpoint,
+            [key for key, _val in active_matches or matches],
+        )
+
     def _fetch(self, endpoint: str, ticker: str) -> dict:
         """Return parsed JSON for *ticker*, using the cache when fresh."""
         manifest = self._get_manifest(endpoint)
 
-        entry = manifest.get(ticker)
-        if entry is None:
-            raise TickerNotFoundError(ticker, endpoint)
-
+        resolved_ticker, entry = self._resolve_manifest_entry(endpoint, manifest, ticker)
         remote_ts = entry["last_update"]
 
         if self._use_cache and not self._refresh_cache:
@@ -94,7 +158,7 @@ class Client:
                 )
                 return cached_data
 
-        data = self._transport.get(endpoint, ticker)
+        data = self._transport.get(endpoint, resolved_ticker)
 
         if self._use_cache or self._refresh_cache:
             self._cache.put(endpoint, ticker, data, remote_ts)

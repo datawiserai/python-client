@@ -103,6 +103,43 @@ fixtures, but it is deprecated and will be discontinued.
 The version 2 format materially reduces transfer and cache size. In typical
 exports it improves compression / file size by about **15x on average**.
 
+## Free-float events validation tool
+
+The repository includes a live API validation script at
+[`validation/free_float_event_validation.py`](validation/free_float_event_validation.py).
+It is intended for maintainers and schema reviewers who want to understand and
+verify the `free-float-events` receiving format end to end.
+
+Run it with a Datawiser API key:
+
+```bash
+export DATAWISER_API_KEY="pk_live_..."
+python validation/free_float_event_validation.py --tickers AAPL
+```
+
+You can pass multiple comma-separated tickers, or omit `--tickers` to validate
+the full `free-float-events` universe:
+
+```bash
+python validation/free_float_event_validation.py --tickers AAPL,MSFT,NVDA
+python validation/free_float_event_validation.py --workers 4
+```
+
+The tool checks the manifest first, including recycled-ticker handling: duplicate
+ticker entries must resolve to exactly one active non-delisted security, while
+`-full` QC exports are ignored for active-security counting. It then fetches
+`free-float-events` through the normal client and performs ground-up checks:
+
+- `ff_factor` must recalculate from `excluded_shares` and `shares_out`.
+- `delta_shares` must explain movement between adjacent event summary rows.
+- excluded owner rows must sum to top-level `excluded_shares`.
+- each owner's nested components must sum to that owner row's shares.
+- nested components across all owners must sum to top-level `excluded_shares`.
+
+These checks are intentionally stricter than a smoke test. They demonstrate how
+the compact delta payload is expanded into the client-facing schema and prove
+that the summary, flat owner view, and nested drill-down view reconcile.
+
 ## Free-float event summary: `is_rebal`
 
 The high-level event summary DataFrame includes **`is_rebal`** (from the API's `isRebalanced`). Our pipeline is event-sourced: we ingest and process changes continuously from daily/near-daily filings such as Forms 3/4/5 (and related corporate-action signals), so most dates reflect incremental updates.
