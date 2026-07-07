@@ -1,6 +1,7 @@
 from .free_float import FreeFloat, FreeFloatEvent
 from .free_float_events import (
     Component,
+    EntityTypeHandling,
     EventDetails,
     FreeFloatEventDetail,
     FreeFloatEventSummary,
@@ -18,6 +19,7 @@ from .universe import Universe, UniverseEntry
 __all__ = [
     "CompanyInfo",
     "Component",
+    "EntityTypeHandling",
     "EventDetails",
     "FreeFloat",
     "FreeFloatEvent",

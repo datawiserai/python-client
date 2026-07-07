@@ -115,6 +115,81 @@ class FreeFloatEventSummary:
 # ---------------------------------------------------------------------------
 
 @dataclass(frozen=True)
+class EntityTypeHandling:
+    """Entity-type reclassification metadata for a free-float owner row."""
+
+    initial_entity_type: Optional[str] = None
+    entity_type_before_flip: Optional[str] = None
+    entity_type_after_flip: Optional[str] = None
+    is_entity_type_flip: Optional[bool] = None
+    entity_type_flip_reason: Optional[str] = None
+    flip_threshold: Optional[Any] = None
+    flip_ownership_pct: Optional[Any] = None
+    flip_shares: Optional[Any] = None
+    flip_shares_outstanding: Optional[Any] = None
+    flip_shares_outstanding_date: Optional[str] = None
+    flip_split_adjustment: Optional[Any] = None
+    entity_type_flip_policy: Optional[str] = None
+
+    @classmethod
+    def _from_dict(cls, d: dict[str, Any] | None) -> Optional[EntityTypeHandling]:
+        if not d:
+            return None
+        return cls(
+            initial_entity_type=d.get("initialEntityType"),
+            entity_type_before_flip=d.get("entityTypeBeforeFlip"),
+            entity_type_after_flip=d.get("entityTypeAfterFlip"),
+            is_entity_type_flip=d.get("isEntityTypeFlip"),
+            entity_type_flip_reason=d.get("entityTypeFlipReason"),
+            flip_threshold=d.get("flipThreshold"),
+            flip_ownership_pct=d.get("flipOwnershipPct"),
+            flip_shares=d.get("flipShares"),
+            flip_shares_outstanding=d.get("flipSharesOutstanding"),
+            flip_shares_outstanding_date=d.get("flipSharesOutstandingDate"),
+            flip_split_adjustment=d.get("flipSplitAdjustment"),
+            entity_type_flip_policy=d.get("entityTypeFlipPolicy"),
+        )
+
+
+def _entity_type_handling_to_flat_dict(
+    entity_type_handling: Optional[EntityTypeHandling],
+) -> dict[str, Any]:
+    keys = {
+        "initial_entity_type": None,
+        "entity_type_before_flip": None,
+        "entity_type_after_flip": None,
+        "is_entity_type_flip": None,
+        "entity_type_flip_reason": None,
+        "flip_threshold": None,
+        "flip_ownership_pct": None,
+        "flip_shares": None,
+        "flip_shares_outstanding": None,
+        "flip_shares_outstanding_date": None,
+        "flip_split_adjustment": None,
+        "entity_type_flip_policy": None,
+    }
+    if entity_type_handling is None:
+        return keys
+    return {
+        **keys,
+        "initial_entity_type": entity_type_handling.initial_entity_type,
+        "entity_type_before_flip": entity_type_handling.entity_type_before_flip,
+        "entity_type_after_flip": entity_type_handling.entity_type_after_flip,
+        "is_entity_type_flip": entity_type_handling.is_entity_type_flip,
+        "entity_type_flip_reason": entity_type_handling.entity_type_flip_reason,
+        "flip_threshold": entity_type_handling.flip_threshold,
+        "flip_ownership_pct": entity_type_handling.flip_ownership_pct,
+        "flip_shares": entity_type_handling.flip_shares,
+        "flip_shares_outstanding": entity_type_handling.flip_shares_outstanding,
+        "flip_shares_outstanding_date": (
+            entity_type_handling.flip_shares_outstanding_date
+        ),
+        "flip_split_adjustment": entity_type_handling.flip_split_adjustment,
+        "entity_type_flip_policy": entity_type_handling.entity_type_flip_policy,
+    }
+
+
+@dataclass(frozen=True)
 class FreeFloatOwnerSummary:
     """Flat summary of one owner within a single free-float event date.
 
@@ -138,6 +213,7 @@ class FreeFloatOwnerSummary:
     filing_date: Optional[str] = None
     source_event: Optional[str] = None
     event_id: Optional[str] = None
+    entity_type_handling: Optional[EntityTypeHandling] = None
 
     @classmethod
     def _from_component(
@@ -159,6 +235,9 @@ class FreeFloatOwnerSummary:
             filing_date=c.get("filingDate"),
             source_event=c.get("sourceEvent"),
             event_id=c.get("id"),
+            entity_type_handling=EntityTypeHandling._from_dict(
+                c.get("entityTypeHandling")
+            ),
         )
 
 
@@ -267,6 +346,7 @@ class FreeFloatEvents:
                 "filing_date": o.filing_date,
                 "source_event": o.source_event,
                 "event_id": o.event_id,
+                **_entity_type_handling_to_flat_dict(o.entity_type_handling),
             }
             for o in self.owners
         ]
@@ -491,6 +571,7 @@ class OwnerDetail:
     is_dao: Optional[bool] = None
     is_extra_owner: bool = False
     is_new_owner: bool = False
+    entity_type_handling: Optional[EntityTypeHandling] = None
 
     @classmethod
     def _from_dict(cls, owner_id: str, d: dict[str, Any]) -> OwnerDetail:
@@ -515,6 +596,9 @@ class OwnerDetail:
             is_dao=d.get("isDao", d.get("is_dao")),
             is_extra_owner=d.get("isExtraOwner", False),
             is_new_owner=d.get("isNewOwner", False),
+            entity_type_handling=EntityTypeHandling._from_dict(
+                d.get("entityTypeHandling")
+            ),
         )
 
 

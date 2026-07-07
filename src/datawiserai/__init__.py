@@ -10,6 +10,7 @@ from ._exceptions import (
 from .models.free_float import FreeFloat, FreeFloatEvent
 from .models.free_float_events import (
     Component,
+    EntityTypeHandling,
     EventDetails,
     FreeFloatEventDetail,
     FreeFloatEventSummary,
@@ -29,6 +30,7 @@ __all__ = [
     "AmbiguousTickerError",
     "CompanyInfo",
     "Component",
+    "EntityTypeHandling",
     "DatawiserAPIError",
     "DatawiserError",
     "ENDPOINTS",
