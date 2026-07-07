@@ -131,7 +131,7 @@ class FreeFloatOwnerSummary:
     entity_type: str
     rel_type: str
     event_mask: int
-    is_officer: bool
+    is_dao: Optional[bool]
     is_extra_owner: bool
     is_new_owner: bool
     incomplete_event: bool
@@ -152,7 +152,7 @@ class FreeFloatOwnerSummary:
             entity_type=c.get("entityType", ""),
             rel_type=c.get("relType", ""),
             event_mask=c.get("eventMask", 0),
-            is_officer=c.get("isOfficer", False),
+            is_dao=c.get("isDao", c.get("is_dao")),
             is_extra_owner=c.get("isExtraOwner", False),
             is_new_owner=c.get("isNewOwner", False),
             incomplete_event=c.get("incompleteEvent", False),
@@ -260,7 +260,7 @@ class FreeFloatEvents:
                 "entity_type": o.entity_type,
                 "rel_type": o.rel_type,
                 "event_mask": o.event_mask,
-                "is_officer": o.is_officer,
+                "is_dao": o.is_dao,
                 "is_extra_owner": o.is_extra_owner,
                 "is_new_owner": o.is_new_owner,
                 "incomplete_event": o.incomplete_event,
@@ -427,7 +427,6 @@ class EventDetails:
     possible_shared_ownership: Optional[bool] = None
     instrument_type: Optional[str] = None
     instrument_subtype: Optional[str] = None
-    is_officer: Optional[bool] = None
     zero_shares_verified: Optional[bool] = None
     llm_sourced: Optional[bool] = None
     raw: Optional[dict[str, Any]] = field(default=None, repr=False)
@@ -448,7 +447,6 @@ class EventDetails:
             delta_shares=d.get("deltaShares"),
             shares=d.get("shares"),
             possible_shared_ownership=d.get("possibleSharedOwnership"),
-            is_officer=d.get("isOfficer"),
             zero_shares_verified=d.get("zeroSharesVerified"),
             llm_sourced=d.get("llmSourced"),
             instrument_type=d.get("instrumentType"),
@@ -490,7 +488,7 @@ class OwnerDetail:
     event_id: Optional[str] = None
     incomplete_event: bool = False
     source_spans_dates: bool = False
-    is_officer: bool = False
+    is_dao: Optional[bool] = None
     is_extra_owner: bool = False
     is_new_owner: bool = False
 
@@ -514,7 +512,7 @@ class OwnerDetail:
             event_id=d.get("id"),
             incomplete_event=d.get("incompleteEvent", False),
             source_spans_dates=d.get("sourceSpansDates", False),
-            is_officer=d.get("isOfficer", False),
+            is_dao=d.get("isDao", d.get("is_dao")),
             is_extra_owner=d.get("isExtraOwner", False),
             is_new_owner=d.get("isNewOwner", False),
         )
