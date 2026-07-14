@@ -185,6 +185,35 @@ def test_free_float_events_models_use_expanded_latest_first_events():
     assert owner_b.restrictions == []
 
 
+def test_component_detail_extracts_restricted_stock_flag():
+    payload = {
+        "ticker": "XYZ",
+        "securityId": "XYZsec",
+        "events": [
+            {
+                "asOf": "2024-01-01",
+                "components": {
+                    "A": _component(
+                        "A",
+                        10,
+                        components=[
+                            {"id": "restricted", "isRestrictedStock": True},
+                            {"id": "not-restricted", "isRestrictedStock": False},
+                            {"id": "unknown"},
+                        ],
+                    )
+                },
+            }
+        ],
+    }
+
+    owner = FreeFloatEventsDetail._from_dict(payload)[0].owner("A")
+
+    assert owner.components[0].is_restricted_stock is True
+    assert owner.components[1].is_restricted_stock is False
+    assert owner.components[2].is_restricted_stock is None
+
+
 def test_old_payloads_without_event_format_are_treated_as_full_snapshots():
     payload = {
         "ticker": "XYZ",

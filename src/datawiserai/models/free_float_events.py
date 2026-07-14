@@ -394,6 +394,7 @@ class Component:
     incomplete_event_retained: bool
     nature_of_ownership: Optional[str] = None
     entity: Optional[str] = None
+    is_restricted_stock: Optional[bool] = None
 
     @classmethod
     def _from_dict(cls, d: dict[str, Any]) -> Component:
@@ -414,6 +415,7 @@ class Component:
             incomplete_event_retained=d.get("incompleteEventRetained", False),
             nature_of_ownership=d.get("natureOfOwnership"),
             entity=d.get("entity"),
+            is_restricted_stock=d.get("isRestrictedStock"),
         )
 
 
