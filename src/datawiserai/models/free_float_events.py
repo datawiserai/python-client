@@ -604,6 +604,29 @@ class OwnerDetail:
         )
 
 
+@dataclass(frozen=True)
+class ComponentDeleteDetail:
+    """Economic state explaining why an owner component was deleted."""
+
+    reason: str
+    source_event: Optional[str] = None
+    replacement_owner_identity_id: Optional[str] = None
+    reported_shares_after: Optional[float] = None
+    excluded_shares_after: Optional[float] = None
+    entity_type_after: Optional[str] = None
+
+    @classmethod
+    def _from_dict(cls, d: dict[str, Any]) -> ComponentDeleteDetail:
+        return cls(
+            reason=d.get("reason", ""),
+            source_event=d.get("sourceEvent"),
+            replacement_owner_identity_id=d.get("replacementOwnerIdentityId"),
+            reported_shares_after=d.get("reportedSharesAfter"),
+            excluded_shares_after=d.get("excludedSharesAfter"),
+            entity_type_after=d.get("entityTypeAfter"),
+        )
+
+
 @dataclass
 class FreeFloatEventDetail:
     """Full detail for a single event date.
@@ -617,6 +640,8 @@ class FreeFloatEventDetail:
         Keyed by ``ownerIdentityId``.  Each value is a typed :class:`OwnerDetail`
         with :attr:`OwnerDetail.components`, :attr:`OwnerDetail.restrictions`,
         :attr:`OwnerDetail.options`, and :attr:`OwnerDetail.event_details`.
+    component_delete_details : dict[str, ComponentDeleteDetail]
+        Event-specific deletion details keyed by the deleted owner identity ID.
     raw : dict
         The original top-level event dict (for backward compatibility).
     """
@@ -631,6 +656,9 @@ class FreeFloatEventDetail:
     delta_ff_factor: float = 0.0
     is_rebal: bool = False
     delta: dict[str, dict[str, Union[float, str]]] = field(default_factory=dict)
+    component_delete_details: dict[str, ComponentDeleteDetail] = field(
+        default_factory=dict
+    )
     raw: dict = None
 
     @classmethod
@@ -650,6 +678,10 @@ class FreeFloatEventDetail:
             delta_ff_factor=d.get("deltaFfFactor", 0.0),
             delta=d.get("delta", {}),
             is_rebal=d.get("isRebalanced", False),
+            component_delete_details={
+                owner_id: ComponentDeleteDetail._from_dict(detail)
+                for owner_id, detail in (d.get("componentDeleteDetails") or {}).items()
+            },
             raw=d,
         )
 

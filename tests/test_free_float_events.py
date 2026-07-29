@@ -110,6 +110,16 @@ def _delta_payload():
                     "C": _component("C", 5, asOf="2024-01-03"),
                 },
                 "componentDeletes": ["B"],
+                "componentDeleteDetails": {
+                    "B": {
+                        "sourceEvent": "schedule13d|2024-01-03|accession|DOC",
+                        "replacementOwnerIdentityId": "C",
+                        "reportedSharesAfter": 5,
+                        "excludedSharesAfter": 0,
+                        "entityTypeAfter": "organization",
+                        "reason": "linked_owner_below_threshold",
+                    }
+                },
                 "ownerIdentitiesMap": {
                     "C": {"namePrimary": "Owner C"},
                 },
@@ -136,6 +146,7 @@ def test_expand_free_float_events_payload_replays_seed_delta_and_deletes():
 
     assert set(events[0]["components"]) == {"A", "B"}
     assert events[0]["components"]["B"]["shares"] == 20
+    assert "componentDeleteDetails" not in events[0]
 
     assert set(events[1]["components"]) == {"A", "B"}
     assert events[1]["components"]["A"]["shares"] == 10
@@ -143,10 +154,21 @@ def test_expand_free_float_events_payload_replays_seed_delta_and_deletes():
     assert "filingDate" not in events[1]["components"]["B"]
     assert set(events[1]["ownerIdentitiesMap"]) == {"A", "B"}
     assert events[1]["knownCrossHoldings"] == {"KH1": {"source": "seed"}}
+    assert "componentDeleteDetails" not in events[1]
 
     assert set(events[2]["components"]) == {"A", "C"}
     assert set(events[2]["ownerIdentitiesMap"]) == {"A", "C"}
     assert events[2]["knownCrossHoldings"] == {}
+    assert events[2]["componentDeleteDetails"] == {
+        "B": {
+            "sourceEvent": "schedule13d|2024-01-03|accession|DOC",
+            "replacementOwnerIdentityId": "C",
+            "reportedSharesAfter": 5,
+            "excludedSharesAfter": 0,
+            "entityTypeAfter": "organization",
+            "reason": "linked_owner_below_threshold",
+        }
+    }
     assert "componentDeletes" not in events[2]
     assert "ownerIdentityDeletes" not in events[2]
     assert "knownCrossHoldingDeletes" not in events[2]
@@ -179,10 +201,19 @@ def test_free_float_events_models_use_expanded_latest_first_events():
     assert owner_c.options == []
     assert owner_c.restrictions == []
 
+    deleted_b = detail.events[0].component_delete_details["B"]
+    assert deleted_b.source_event == "schedule13d|2024-01-03|accession|DOC"
+    assert deleted_b.replacement_owner_identity_id == "C"
+    assert deleted_b.reported_shares_after == 5
+    assert deleted_b.excluded_shares_after == 0
+    assert deleted_b.entity_type_after == "organization"
+    assert deleted_b.reason == "linked_owner_below_threshold"
+
     owner_b = detail.by_date("2024-01-02").owner("B")
     assert owner_b.shares == 30
     assert owner_b.options == []
     assert owner_b.restrictions == []
+    assert detail.by_date("2024-01-02").component_delete_details == {}
 
 
 def test_component_detail_extracts_restricted_stock_flag():
