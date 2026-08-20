@@ -14,6 +14,7 @@ if str(SRC_DIR) not in sys.path:
 from datawiserai.models.free_float_events import (
     FreeFloatEvents,
     FreeFloatEventsDetail,
+    OwnerCarrierHandoff,
     expand_free_float_events_payload,
 )
 
@@ -245,6 +246,103 @@ def test_component_detail_extracts_restricted_stock_flag():
     assert owner.components[2].is_restricted_stock is None
 
 
+def test_component_detail_preserves_adjusted_and_reported_share_positions():
+    payload = {
+        "ticker": "XYZ",
+        "securityId": "XYZsec",
+        "events": [
+            {
+                "asOf": "2025-08-03",
+                "components": {
+                    "A": _component(
+                        "A",
+                        10,
+                        components=[
+                            {
+                                "shares": 0,
+                                "adjustedShares": 96_000_000,
+                                "adjustedDeltaShares": 96_000_000,
+                                "reportedShares": 96_000_000,
+                                "reportedDeltaShares": 96_000_000,
+                                "isRestrictedStock": True,
+                            }
+                        ],
+                    )
+                },
+            }
+        ],
+    }
+
+    component = FreeFloatEventsDetail._from_dict(payload)[0].owner(
+        "A"
+    ).components[0]
+
+    assert component.shares == 0
+    assert component.adjusted_shares == 96_000_000
+    assert component.adjusted_delta_shares == 96_000_000
+    assert component.reported_shares == 96_000_000
+    assert component.reported_delta_shares == 96_000_000
+
+
+def test_synthetic_remainder_metadata_is_preserved_in_both_views():
+    payload = {
+        "ticker": "XYZ",
+        "securityId": "XYZsec",
+        "events": [
+            {
+                "asOf": "2025-12-12",
+                "components": {
+                    "synthetic_remainder": _component(
+                        "synthetic_remainder",
+                        -1_009_446,
+                        entityType="group_total",
+                        filingDate="2025-12-15",
+                        isSyntheticRemainder=True,
+                        syntheticRemainderLabel="Synthetic Remainder (-1 insiders)",
+                    )
+                },
+            }
+        ],
+    }
+
+    flat = FreeFloatEvents._from_dict(payload)
+    owner = flat.owners[0]
+    assert owner.is_synthetic_remainder is True
+    assert (
+        owner.synthetic_remainder_label
+        == "Synthetic Remainder (-1 insiders)"
+    )
+    assert flat.to_dataframe().loc[0, "is_synthetic_remainder"]
+
+    detail_owner = FreeFloatEventsDetail._from_dict(payload)[0].owner(
+        "synthetic_remainder"
+    )
+    assert detail_owner.is_synthetic_remainder is True
+    assert (
+        detail_owner.synthetic_remainder_label
+        == "Synthetic Remainder (-1 insiders)"
+    )
+
+
+def test_legacy_owner_has_no_synthetic_remainder_flag():
+    payload = {
+        "ticker": "XYZ",
+        "securityId": "XYZsec",
+        "events": [
+            {
+                "asOf": "2024-01-01",
+                "components": {"A": _component("A", 10)},
+            }
+        ],
+    }
+
+    flat_owner = FreeFloatEvents._from_dict(payload).owners[0]
+    detail_owner = FreeFloatEventsDetail._from_dict(payload)[0].owner("A")
+
+    assert flat_owner.is_synthetic_remainder is None
+    assert detail_owner.is_synthetic_remainder is None
+
+
 def test_old_payloads_without_event_format_are_treated_as_full_snapshots():
     payload = {
         "ticker": "XYZ",
@@ -262,6 +360,98 @@ def test_old_payloads_without_event_format_are_treated_as_full_snapshots():
     assert expanded == payload
     assert expanded is not payload
     assert expanded["events"] is not payload["events"]
+
+
+def test_compact_events_normalize_explicit_owner_carrier_handoff():
+    payload = {
+        "ticker": "BLFS",
+        "securityId": "BLFSx0Ds9jh",
+        "eventFormat": "free_float_events_delta_v1",
+        "eventSort": "as_of_ascending",
+        "deltaFields": {
+            "components": "componentDeletes",
+            "ownerIdentitiesMap": "ownerIdentityDeletes",
+            "knownCrossHoldings": "knownCrossHoldingDeletes",
+        },
+        "events": [
+            {
+                "asOf": "2025-08-11",
+                "components": {
+                    "BLFSxxIrQ2rNW": _component(
+                        "BLFSxxIrQ2rNW",
+                        7_207_165,
+                        filingDate="2025-08-13",
+                    )
+                },
+            },
+            {
+                "asOf": "2025-08-15",
+                "componentDeletes": ["BLFSxxIrQ2rNW"],
+                "components": {
+                    "BLFSxCKWRRlbk": _component(
+                        "BLFSxCKWRRlbk",
+                        6_707_165,
+                        filingDate="2025-08-21",
+                    )
+                },
+                "knownCrossHoldings": {
+                    "BLFSxCKWRRlbk": {
+                        "ownerIdentityId": "BLFSxCKWRRlbk",
+                        "sourceOwnerIdentityId": "BLFSxCKWRRlbk",
+                        "linkedOwnerIdentityIds": ["BLFSxxIrQ2rNW"],
+                    }
+                },
+                "ExplicitOwnerLinkSuppressionSources": {
+                    "BLFSx21b3FtLY": [
+                        "BLFSxCKWRRlbk",
+                        "BLFSxxIrQ2rNW",
+                    ],
+                    "BLFSxxIrQ2rNW": ["BLFSxCKWRRlbk"],
+                },
+            },
+        ],
+    }
+
+    ffe = FreeFloatEvents._from_dict(payload)
+
+    assert ffe.owner_carrier_handoffs == (
+        OwnerCarrierHandoff(
+            as_of=date(2025, 8, 15),
+            predecessor_owner_id="BLFSxxIrQ2rNW",
+            successor_owner_id="BLFSxCKWRRlbk",
+            related_owner_ids=(
+                "BLFSx21b3FtLY",
+                "BLFSxCKWRRlbk",
+                "BLFSxxIrQ2rNW",
+            ),
+            evidence_sources=(
+                "explicit_owner_link_suppression",
+                "known_cross_holding_link",
+            ),
+        ),
+    )
+
+
+def test_carrier_handoff_is_not_inferred_without_explicit_owner_link():
+    payload = {
+        "ticker": "XYZ",
+        "securityId": "XYZsec",
+        "eventFormat": "free_float_events_delta_v1",
+        "eventSort": "as_of_ascending",
+        "events": [
+            {
+                "asOf": "2025-08-11",
+                "components": {"OLD": _component("OLD", 100)},
+            },
+            {
+                "asOf": "2025-08-15",
+                "componentDeletes": ["OLD"],
+                "components": {"NEW": _component("NEW", 100)},
+            },
+        ],
+    }
+
+    assert FreeFloatEvents._from_dict(payload).owner_carrier_handoffs == ()
 
 
 def _load_gzip_json(path: Path):

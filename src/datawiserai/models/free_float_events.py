@@ -67,6 +67,126 @@ def _expanded_events_for_client(payload: dict[str, Any]) -> list[dict[str, Any]]
     return events
 
 
+def _owner_relation_evidence(
+    event: dict[str, Any],
+) -> dict[tuple[str, str], set[str]]:
+    """Return explicit owner-to-owner evidence carried by one compact event."""
+    evidence: dict[tuple[str, str], set[str]] = {}
+
+    def add(left: Any, right: Any, source: str) -> None:
+        if not left or not right:
+            return
+        left_id = str(left)
+        right_id = str(right)
+        if left_id == right_id:
+            return
+        pair = tuple(sorted((left_id, right_id)))
+        evidence.setdefault(pair, set()).add(source)
+
+    for source_owner_id, linked_owner_ids in (
+        event.get("ExplicitOwnerLinkSuppressionSources") or {}
+    ).items():
+        for linked_owner_id in linked_owner_ids or ():
+            add(
+                source_owner_id,
+                linked_owner_id,
+                "explicit_owner_link_suppression",
+            )
+
+    for key, cross_holding in (event.get("knownCrossHoldings") or {}).items():
+        owner_id = cross_holding.get("ownerIdentityId") or key
+        add(
+            owner_id,
+            cross_holding.get("sourceOwnerIdentityId"),
+            "known_cross_holding_source",
+        )
+        for linked_owner_id in cross_holding.get("linkedOwnerIdentityIds") or ():
+            add(owner_id, linked_owner_id, "known_cross_holding_link")
+
+    for owner_id, owner in (event.get("components") or {}).items():
+        owner_records = [owner, *(owner.get("components") or ())]
+        for record in owner_records:
+            for field_name in (
+                "sourceOwnerIdentityId",
+                "carrierOwnerIdentityId",
+                "targetOwnerIdentityId",
+            ):
+                add(owner_id, record.get(field_name), "component_owner_lineage")
+
+    return evidence
+
+
+@dataclass(frozen=True)
+class OwnerCarrierHandoff:
+    """An explicit compact-event replacement of one owner carrier by another."""
+
+    as_of: date
+    predecessor_owner_id: str
+    successor_owner_id: str
+    related_owner_ids: tuple[str, ...] = ()
+    evidence_sources: tuple[str, ...] = ()
+
+
+def _owner_carrier_handoffs_from_payload(
+    payload: dict[str, Any],
+) -> tuple[OwnerCarrierHandoff, ...]:
+    """Normalize explicit delete/add carrier handoffs from compact events.
+
+    Legacy full-snapshot payloads deliberately produce no inferred handoffs.
+    Absence of compact deletion and explicit owner-link evidence is not enough
+    to establish that two owner identities occupy the same economic slot.
+    """
+    if payload.get("eventFormat") != FF_EVENTS_EVENT_FORMAT:
+        return ()
+
+    delta_fields = payload.get("deltaFields") or DEFAULT_DELTA_FIELDS
+    component_delete_field = delta_fields.get("components", "componentDeletes")
+    handoffs: list[OwnerCarrierHandoff] = []
+    for event in sorted(payload.get("events") or (), key=lambda ev: ev.get("asOf", "")):
+        as_of_text = event.get("asOf")
+        if not as_of_text:
+            continue
+        deleted_owner_ids = {
+            str(owner_id) for owner_id in event.get(component_delete_field) or ()
+        }
+        changed_owner_ids = {
+            str(owner_id) for owner_id in (event.get("components") or {})
+        }
+        if not deleted_owner_ids or not changed_owner_ids:
+            continue
+
+        relation_evidence = _owner_relation_evidence(event)
+        adjacency: dict[str, set[str]] = {}
+        for left_id, right_id in relation_evidence:
+            adjacency.setdefault(left_id, set()).add(right_id)
+            adjacency.setdefault(right_id, set()).add(left_id)
+
+        for predecessor_owner_id in sorted(deleted_owner_ids):
+            for successor_owner_id in sorted(changed_owner_ids):
+                pair = tuple(sorted((predecessor_owner_id, successor_owner_id)))
+                sources = relation_evidence.get(pair)
+                if not sources:
+                    continue
+
+                related_owner_ids = {
+                    predecessor_owner_id,
+                    successor_owner_id,
+                    *adjacency.get(predecessor_owner_id, ()),
+                    *adjacency.get(successor_owner_id, ()),
+                }
+                handoffs.append(
+                    OwnerCarrierHandoff(
+                        as_of=date.fromisoformat(as_of_text),
+                        predecessor_owner_id=predecessor_owner_id,
+                        successor_owner_id=successor_owner_id,
+                        related_owner_ids=tuple(sorted(related_owner_ids)),
+                        evidence_sources=tuple(sorted(sources)),
+                    )
+                )
+
+    return tuple(handoffs)
+
+
 # ---------------------------------------------------------------------------
 # High-level event summary  (one row per event date: asOf, ffFactor, etc.)
 # ---------------------------------------------------------------------------
@@ -214,6 +334,8 @@ class FreeFloatOwnerSummary:
     source_event: Optional[str] = None
     event_id: Optional[str] = None
     entity_type_handling: Optional[EntityTypeHandling] = None
+    is_synthetic_remainder: Optional[bool] = None
+    synthetic_remainder_label: Optional[str] = None
 
     @classmethod
     def _from_component(
@@ -238,6 +360,8 @@ class FreeFloatOwnerSummary:
             entity_type_handling=EntityTypeHandling._from_dict(
                 c.get("entityTypeHandling")
             ),
+            is_synthetic_remainder=c.get("isSyntheticRemainder"),
+            synthetic_remainder_label=c.get("syntheticRemainderLabel"),
         )
 
 
@@ -256,6 +380,7 @@ class FreeFloatEvents:
     security_id: str
     event_summaries: tuple[FreeFloatEventSummary, ...]
     owners: tuple[FreeFloatOwnerSummary, ...]
+    owner_carrier_handoffs: tuple[OwnerCarrierHandoff, ...] = ()
 
     @classmethod
     def _from_dict(cls, d: dict[str, Any]) -> FreeFloatEvents:
@@ -275,6 +400,7 @@ class FreeFloatEvents:
             security_id=d["securityId"],
             event_summaries=tuple(event_summaries_list),
             owners=tuple(owner_summaries),
+            owner_carrier_handoffs=_owner_carrier_handoffs_from_payload(d),
         )
 
     def to_event_summary_dataframe(self, sort: bool = True):
@@ -346,6 +472,8 @@ class FreeFloatEvents:
                 "filing_date": o.filing_date,
                 "source_event": o.source_event,
                 "event_id": o.event_id,
+                "is_synthetic_remainder": o.is_synthetic_remainder,
+                "synthetic_remainder_label": o.synthetic_remainder_label,
                 **_entity_type_handling_to_flat_dict(o.entity_type_handling),
             }
             for o in self.owners
@@ -395,6 +523,10 @@ class Component:
     nature_of_ownership: Optional[str] = None
     entity: Optional[str] = None
     is_restricted_stock: Optional[bool] = None
+    adjusted_shares: Optional[float] = None
+    adjusted_delta_shares: Optional[float] = None
+    reported_shares: Optional[float] = None
+    reported_delta_shares: Optional[float] = None
 
     @classmethod
     def _from_dict(cls, d: dict[str, Any]) -> Component:
@@ -416,6 +548,10 @@ class Component:
             nature_of_ownership=d.get("natureOfOwnership"),
             entity=d.get("entity"),
             is_restricted_stock=d.get("isRestrictedStock"),
+            adjusted_shares=d.get("adjustedShares"),
+            adjusted_delta_shares=d.get("adjustedDeltaShares"),
+            reported_shares=d.get("reportedShares"),
+            reported_delta_shares=d.get("reportedDeltaShares"),
         )
 
 
@@ -574,6 +710,8 @@ class OwnerDetail:
     is_extra_owner: bool = False
     is_new_owner: bool = False
     entity_type_handling: Optional[EntityTypeHandling] = None
+    is_synthetic_remainder: Optional[bool] = None
+    synthetic_remainder_label: Optional[str] = None
 
     @classmethod
     def _from_dict(cls, owner_id: str, d: dict[str, Any]) -> OwnerDetail:
@@ -601,6 +739,8 @@ class OwnerDetail:
             entity_type_handling=EntityTypeHandling._from_dict(
                 d.get("entityTypeHandling")
             ),
+            is_synthetic_remainder=d.get("isSyntheticRemainder"),
+            synthetic_remainder_label=d.get("syntheticRemainderLabel"),
         )
 
 

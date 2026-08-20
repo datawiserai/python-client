@@ -19,6 +19,7 @@ from .models.free_float_events import (
     FreeFloatEventsDetail,
     FreeFloatOwnerSummary,
     Option,
+    OwnerCarrierHandoff,
     OwnerDetail,
     Restriction,
 )
@@ -45,6 +46,7 @@ __all__ = [
     "FreeFloatEventsDetail",
     "FreeFloatOwnerSummary",
     "Option",
+    "OwnerCarrierHandoff",
     "OwnerDetail",
     "Reference",
     "Restriction",
@@ -56,4 +58,4 @@ __all__ = [
     "UniverseEntry",
 ]
 
-__version__ = "1.0.4"
+__version__ = "1.0.5"

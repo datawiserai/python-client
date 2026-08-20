@@ -10,6 +10,7 @@ from .free_float_events import (
     FreeFloatEventsDetail,
     FreeFloatOwnerSummary,
     Option,
+    OwnerCarrierHandoff,
     OwnerDetail,
     Restriction,
 )
@@ -31,6 +32,7 @@ __all__ = [
     "FreeFloatEventsDetail",
     "FreeFloatOwnerSummary",
     "Option",
+    "OwnerCarrierHandoff",
     "OwnerDetail",
     "Reference",
     "Restriction",
