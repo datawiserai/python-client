@@ -4,6 +4,8 @@ Official Python client for the [datawiser API](https://api.datawiser.ai).
 
 Full documentation and API usage guide: [datawiser.ai/api](https://datawiser.ai/api)
 
+Browse free current US equity snapshots: [free float and shares outstanding](https://datawiser.ai/free-data)
+
 ## Installation
 
 ```bash

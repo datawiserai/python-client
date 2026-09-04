@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "datawiserai"
-version = "1.0.5"
+version = "1.0.6"
 description = "Official Python client for the datawiser API."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -26,6 +26,7 @@ dev = [
 [project.urls]
 Homepage = "https://datawiser.ai"
 Documentation = "https://datawiser.ai/api"
+"Free data" = "https://datawiser.ai/free-data"
 Source = "https://github.com/datawiserai/python-client"
 
 [tool.hatch.build.targets.wheel]
