@@ -98,7 +98,7 @@ class SharesOutstanding:
                 df = df.sort_values("as_of", ascending=False).reset_index(drop=True)
         return df
 
-    def latest(self) -> SharesOutstandingEvent | None:
+    def latest(self) -> Optional[SharesOutstandingEvent]:
         """Return the most-recent event, or *None* if there are no events."""
         if not self.events:
             return None

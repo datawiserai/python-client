@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import gzip
-import json
 import sys
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -27,12 +25,7 @@ class FakeTransport:
         return self.data
 
 
-def _cache_entry(cache_dir: Path, endpoint: str, ticker: str):
-    with gzip.open(cache_dir / endpoint / f"{ticker}.json.gz", "rt", encoding="utf-8") as handle:
-        return json.load(handle)
-
-
-def test_cache_hit_uses_matching_cached_response():
+def test_free_float_events_revalidates_online_instead_of_using_cache_as_access():
     with TemporaryDirectory() as tmp:
         cache_dir = Path(tmp)
         transport = FakeTransport()
@@ -44,8 +37,8 @@ def test_cache_hit_uses_matching_cached_response():
         second = client._fetch("free-float-events", "ABC")
 
         assert first["securityId"] == "ABCsec"
-        assert second["securityId"] == "ABCsec"
-        assert transport.get_calls == 1
+        assert second["securityId"] == "changed"
+        assert transport.get_calls == 2
 
 
 def test_refresh_cache_bypasses_read_and_overwrites_cache():
@@ -60,14 +53,15 @@ def test_refresh_cache_bypasses_read_and_overwrites_cache():
         refresh_client = Client("test-key", cache_dir=cache_dir, refresh_cache=True)
         refresh_client._transport = transport
         refreshed = refresh_client._fetch("free-float-events", "ABC")
-        cached = _cache_entry(cache_dir, "free-float-events", "ABC")
+        cached = refresh_client._cache.get_data("free-float-events", "ABC")
 
         assert refreshed["securityId"] == "fresh"
-        assert cached["data"]["securityId"] == "fresh"
+        assert cached is not None
+        assert cached.data["securityId"] == "fresh"
         assert transport.get_calls == 2
 
 
-def test_corrupt_cache_file_is_treated_as_miss_and_rewritten():
+def test_legacy_corrupt_cache_file_is_ignored_and_left_intact():
     with TemporaryDirectory() as tmp:
         cache_dir = Path(tmp)
         cache_path = cache_dir / "free-float-events" / "ABC.json.gz"
@@ -78,10 +72,12 @@ def test_corrupt_cache_file_is_treated_as_miss_and_rewritten():
         client = Client("test-key", cache_dir=cache_dir)
         client._transport = transport
         data = client._fetch("free-float-events", "ABC")
-        cached = _cache_entry(cache_dir, "free-float-events", "ABC")
+        cached = client._cache.get_data("free-float-events", "ABC")
 
         assert data["securityId"] == "ABCsec"
-        assert cached["data"]["securityId"] == "ABCsec"
+        assert cached is not None
+        assert cached.data["securityId"] == "ABCsec"
+        assert cache_path.read_bytes() == b"\x1f\x8b"
         assert transport.get_calls == 1
 
 

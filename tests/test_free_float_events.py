@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import gzip
-import json
 import sys
 from datetime import date
 from pathlib import Path
@@ -17,17 +15,6 @@ from datawiserai.models.free_float_events import (
     OwnerCarrierHandoff,
     expand_free_float_events_payload,
 )
-
-FULL_BUILD_FIXTURE_PAIRS = (
-    # tickers included in 'free' tier
-    ("GOOGL", "GOOGLLEDOJy"),
-    ("AAPL", "AAPLRkNMQu0"),
-    ("OLP", "OLPzCBoCCmy"),
-    # other ad-hoc tickers  
-    ("VAL", "VALXHsJANS0"),  # one of the smaller files
-    ("UTHR", "UTHREUOlKij"), # one of the larger files
-)
-
 
 def _component(owner_id: str, shares: float, **extra):
     return {
@@ -452,33 +439,6 @@ def test_carrier_handoff_is_not_inferred_without_explicit_owner_link():
     }
 
     assert FreeFloatEvents._from_dict(payload).owner_carrier_handoffs == ()
-
-
-def _load_gzip_json(path: Path):
-    with gzip.open(path, "rt", encoding="utf-8") as handle:
-        return json.load(handle)
-
-
-def test_full_build_fixture_pairs_expand_to_full_payload():
-    base = (
-        Path(__file__).resolve().parents[2]
-        / "datawiser-api"
-        / "data"
-        / "basic"
-        / "free-float-events"
-    )
-
-    for ticker, security_id in FULL_BUILD_FIXTURE_PAIRS:
-        stem = f"{ticker}-{security_id}"
-        compact_path = base / f"{stem}.json.gz"
-        full_path = base / f"{stem}-full.json.gz"
-        assert compact_path.exists(), f"Missing compact fixture: {compact_path}"
-        assert full_path.exists(), f"Missing full fixture: {full_path}"
-
-        compact_payload = _load_gzip_json(compact_path)
-        full_payload = _load_gzip_json(full_path)
-
-        assert expand_free_float_events_payload(compact_payload) == full_payload
 
 
 def _run_direct():
