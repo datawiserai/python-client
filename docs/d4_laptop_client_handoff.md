@@ -18,9 +18,10 @@ database quota observation, deployment, or release.
   pre-existing unrelated user changes.
 - Authoritative input: the user-supplied “D4-L — Upgrade the Python client on
   the laptop” self-contained brief, which supersedes the earlier Studio brief.
-- Final implementation commit: **recorded after the reviewed implementation
-  commit is created; the report-finalization commit will be the local branch
-  HEAD**. No remote operation is authorised or performed.
+- Reviewed implementation commit:
+  `9e1b2dca2080ee476a10344ccdc40a77c23acaed` (`Implement D4 conditional
+  client caching`). The follow-up report-finalization commit containing this
+  exact record is the local branch HEAD. No remote operation was performed.
 - Final working-tree state: clean after the report-finalization commit; there
   were no unrelated pre-existing changes to distinguish.
 
@@ -112,9 +113,8 @@ D4-L regression.
   tests, and the later-smoke example passed; `git diff --check` passed. No
   separate lint or type-check configuration exists in this repository.
 - Build: `/Users/jj/miniconda3/envs/py311/bin/python -m build` successfully
-  produced `dist/datawiserai-1.1.0-py3-none-any.whl` (SHA-256
-  `8c83cdc93f61b6a4374b1c830da3233c3726d9b6553341033d0065b92532fa25`)
-  and `dist/datawiserai-1.1.0.tar.gz`. Archive inspection found only the
+  produced `dist/datawiserai-1.1.0-py3-none-any.whl` and
+  `dist/datawiserai-1.1.0.tar.gz`. Archive inspection found only the
   client package in the wheel and the expected client source, docs, examples,
   tests, and validation utility in the sdist. Runtime metadata contains only
   `requests>=2.28`; no backend/publisher dependency or private data is present.
