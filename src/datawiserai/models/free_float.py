@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
-from typing import Any, Sequence
+from typing import Any, Optional, Sequence
 
 
 @dataclass(frozen=True)
@@ -90,7 +90,7 @@ class FreeFloat:
                 df = df.sort_values("as_of", ascending=False).reset_index(drop=True)
         return df
 
-    def latest(self) -> FreeFloatEvent | None:
+    def latest(self) -> Optional[FreeFloatEvent]:
         """Return the most-recent event, or *None* if there are no events."""
         if not self.events:
             return None

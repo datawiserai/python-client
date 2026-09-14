@@ -3,8 +3,17 @@
 from .client import Client, ENDPOINTS
 from ._exceptions import (
     AmbiguousTickerError,
+    DatawiserAccessError,
     DatawiserAPIError,
+    DatawiserAuthenticationError,
+    DatawiserCacheError,
     DatawiserError,
+    DatawiserNetworkError,
+    DatawiserNotFoundError,
+    DatawiserRateLimitError,
+    DatawiserResponseError,
+    DatawiserServiceError,
+    ManifestCompatibilityError,
     TickerNotFoundError,
 )
 from .models.free_float import FreeFloat, FreeFloatEvent
@@ -33,9 +42,17 @@ __all__ = [
     "CompanyInfo",
     "Component",
     "ComponentDeleteDetail",
+    "DatawiserAccessError",
     "EntityTypeHandling",
     "DatawiserAPIError",
+    "DatawiserAuthenticationError",
+    "DatawiserCacheError",
     "DatawiserError",
+    "DatawiserNetworkError",
+    "DatawiserNotFoundError",
+    "DatawiserRateLimitError",
+    "DatawiserResponseError",
+    "DatawiserServiceError",
     "ENDPOINTS",
     "EventDetails",
     "FreeFloat",
@@ -45,6 +62,7 @@ __all__ = [
     "FreeFloatEvents",
     "FreeFloatEventsDetail",
     "FreeFloatOwnerSummary",
+    "ManifestCompatibilityError",
     "Option",
     "OwnerCarrierHandoff",
     "OwnerDetail",
@@ -58,4 +76,4 @@ __all__ = [
     "UniverseEntry",
 ]
 
-__version__ = "1.0.6"
+__version__ = "1.1.0"

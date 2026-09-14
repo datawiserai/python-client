@@ -63,21 +63,106 @@ owner.options                           # List[Option]
 owner.event_details                     # EventDetails or None
 ```
 
+## Configuration and identifiers
+
+The API key is a datawiser credential and should be treated as a secret. The
+client sends it in `X-API-Key`. Production is the default; an explicit API root
+can be selected for an approved environment:
+
+```python
+client = dw.Client(
+    api_key="pk_live_...",
+    base_url="https://api.datawiser.ai/v1",
+    timeout=30,
+)
+```
+
+`base_url` identifies both the origin and base path. It must not contain URL
+userinfo, a query string, or a fragment. HTTPS is required except for localhost
+and loopback URLs used by local contract tests.
+
+For `shares_outstanding()` and `reference()`, the exact identifier supplied by
+the caller is safely encoded as one URL path segment and passed to the server.
+The client does not elect an owner from discovery metadata or rewrite a request
+to a previously cached security ID.
+
+| Identifier form | Server interpretation |
+|---|---|
+| `security_id` (case-sensitive) | Exact security |
+| `ticker-country-security_id` | Exact evidenced qualified association |
+| `ticker-security_id` | Evidenced U.S.-only convenience form |
+| `ticker-country` | Current owner in that country |
+| Bare `ticker` (optionally ending in `.json`) | Current U.S. owner only; no foreign fallback |
+
+The returned payload's `ticker` can be a historical or source label. The
+returned `security_id` is the financial identity and is not rejected merely
+because the label differs from the requested alias. Free-float and free-float
+events retain their established manifest-based identifier resolution and
+payload decoding; because conditional support is not assumed for those routes,
+their online data GET is unconditional.
+
 ## Caching
 
 The client automatically caches responses under `~/.datawiserai/cache/`.
-Before fetching data it checks the endpoint's **manifest** - if the
-server-side `last_update` timestamp matches the cached copy, the local
-version is returned instantly.
+Shares-outstanding and reference calls do not fetch a manifest first. Every
+default online call requests the original identifier and, when an intact
+cached candidate has a server-issued ETag, sends that opaque value in
+`If-None-Match`. A 304 returns the validated cached model without a second data
+request. A 200 validates and atomically replaces the representation. If the
+server omits an ETag, the next call is an ordinary full GET.
+
+Cache version 2 separates API origin and base path, a one-way credential
+namespace, dataset, resolved `security_id`, server ETag/content identity, and
+local schema. It uses hashed path components, integrity checks, owner-only
+permissions where supported, atomic replacement, and bounded size/entry
+retention. Existing timestamp-only cache files are left untouched and are not
+silently trusted or migrated.
 
 ```python
-client = dw.Client(api_key="...", cache_dir="/tmp/dw_cache")  # custom location
-client = dw.Client(api_key="...", use_cache=False)             # disable
-client = dw.Client(api_key="...", refresh_cache=True)          # force refresh
+client = dw.Client(api_key="...", cache_dir="/tmp/dw_cache")
+client = dw.Client(api_key="...", use_cache=False)
+client = dw.Client(api_key="...", refresh_cache=True)
+client = dw.Client(
+    api_key="...",
+    manifest_ttl=300,
+    cache_max_bytes=128 * 1024 * 1024,
+    cache_max_entries=2_000,
+)
 
-client.clear_cache()                # clear everything
-client.clear_cache("free-float")    # clear one endpoint
+client.clear_cache()                 # clear this API/key namespace
+client.clear_cache("free-float")     # clear one dataset in this namespace
 ```
+
+The default bounds are 256 MiB and 2,000 entries per API/key namespace.
+`use_cache=False` bypasses ordinary cache reads and writes; when combined with
+`refresh_cache=True`, fresh results are still written. `refresh_cache=True`
+forces an unconditional data fetch. Universe metadata is cached for
+`manifest_ttl` seconds and can be explicitly refreshed with
+`client.universe(endpoint, refresh=True)`. Free-float and free-float-events
+continue using manifest resolution rather than the SO/reference ETag flow, but
+cached metadata or data never substitutes for their default online data GET.
+
+The cache is an efficiency mechanism, not access authority: the client does
+not serve stale data after an online denial, service error, or network failure,
+and it has no implicit offline mode. If a legitimate 304 arrives after its
+cached body becomes unusable, the client makes at most one unconditional
+recovery GET; `client.diagnostics` records that recovery because its returned
+body may be metered.
+
+## Errors
+
+All client exceptions inherit from `DatawiserError`; HTTP failures retain
+`DatawiserAPIError` compatibility and expose the status code. Typed subclasses
+include `DatawiserAuthenticationError` (401), `DatawiserAccessError` (403),
+`DatawiserNotFoundError` (404), `DatawiserRateLimitError` (429),
+`DatawiserServiceError`, `DatawiserNetworkError`, and
+`DatawiserResponseError`. A 404 means the requested identity or data is
+unavailable to this caller; it does not prove global nonexistence. A 429
+retains bounded retry metadata when supplied and is not retried automatically.
+Cache/manifest compatibility failures use `DatawiserCacheError` and
+`ManifestCompatibilityError`. The client does not fall back to cached paid data
+or automatically retry a possibly metered data request after a timeout,
+interrupted body, or decode failure.
 
 ## Free-float events file format
 
@@ -98,9 +183,10 @@ This format is marked in the payload as:
 
 The SDK expands this compact stream internally, so `client.free_float_events()`
 and `client.free_float_events_detail()` continue to return the same
-client-facing cumulative event shape. The old version 1 full-snapshot file
-format is still accepted for compatibility with older local caches and
-fixtures, but it is deprecated and will be discontinued.
+client-facing cumulative event shape. The old version 1 full-snapshot payload
+format is still accepted for compatibility with established responses and
+fixtures, but it is deprecated and will be discontinued. This payload-format
+compatibility does not read or migrate the pre-1.1 timestamp-only disk cache.
 
 The version 2 format materially reduces transfer and cache size. In typical
 exports it improves compression / file size by about **15x on average**.
@@ -311,14 +397,14 @@ In the ORCL case, changes in the excluded share numerator are more likely to com
 
 ## Available endpoints
 
-| Method | Endpoint | Returns |
+| Method | HTTP route | Returns |
 |---|---|---|
-| `client.free_float(ticker)` | `/v1/free-float/{ticker}` | `FreeFloat` |
-| `client.free_float_events(ticker)` | `/v1/free-float-events/{ticker}` | `FreeFloatEvents` (flat) |
-| `client.free_float_events_detail(ticker)` | `/v1/free-float-events/{ticker}` | `FreeFloatEventsDetail` (nested) |
-| `client.shares_outstanding(ticker)` | `/v1/shares-outstanding/{ticker}` | `SharesOutstanding` |
-| `client.reference(ticker)` | `/v1/reference/{ticker}` | `Reference` |
-| `client.universe(endpoint)` | `/v1/{endpoint}/manifest` | `Universe` |
+| `client.free_float(ticker)` | `/v1/free-float/{identifier}` | `FreeFloat` |
+| `client.free_float_events(ticker)` | `/v1/free-float-events/{identifier}` | `FreeFloatEvents` (flat) |
+| `client.free_float_events_detail(ticker)` | `/v1/free-float-events/{identifier}` | `FreeFloatEventsDetail` (nested) |
+| `client.shares_outstanding(ticker)` | `/v1/shares-outstanding/{identifier}` | `SharesOutstanding` |
+| `client.reference(ticker)` | `/v1/reference/{identifier}` | `Reference` |
+| `client.universe(endpoint, refresh=False)` | `/v1/manifest/{dataset}/updates` | `Universe` |
 
 ## Examples
 
@@ -327,6 +413,7 @@ notebook that walk through every endpoint:
 
 - **[`quickstart.py`](examples/quickstart.py)** - command-line script
 - **[`quickstart.ipynb`](examples/quickstart.ipynb)** - interactive notebook
+- **[`d4_later_smoke.py`](examples/d4_later_smoke.py)** - later, manual hosted conditional-cache smoke test
 
 ## Repository
 

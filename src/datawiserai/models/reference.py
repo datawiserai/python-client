@@ -19,7 +19,9 @@ class CompanyInfo:
     auditor_location: Optional[str] = None
 
     @classmethod
-    def _from_dict(cls, d: dict[str, Any] | None) -> CompanyInfo | None:
+    def _from_dict(
+        cls, d: Optional[dict[str, Any]]
+    ) -> Optional[CompanyInfo]:
         if not d:
             return None
         return cls(
@@ -48,7 +50,9 @@ class SecurityInfo:
     security_12b_title: Optional[str] = None
 
     @classmethod
-    def _from_dict(cls, d: dict[str, Any] | None) -> SecurityInfo | None:
+    def _from_dict(
+        cls, d: Optional[dict[str, Any]]
+    ) -> Optional[SecurityInfo]:
         if not d:
             return None
         return cls(
@@ -84,6 +88,8 @@ class Reference:
     security_info : SecurityInfo or None
     raw : dict
         The original unmodified JSON payload.
+    company_id : str or None
+    listing_id : str or None
     """
 
     ticker: str
@@ -97,12 +103,17 @@ class Reference:
     company_info: Optional[CompanyInfo] = None
     security_info: Optional[SecurityInfo] = None
     raw: dict = field(default_factory=dict, repr=False)
+    company_id: Optional[str] = None
+    listing_id: Optional[str] = None
 
     @classmethod
     def _from_dict(cls, d: dict[str, Any]) -> Reference:
-        ids = d.get("identifiers", {})
-        dw_ids = d.get("dwIds", {})
-        enhanced = d.get("enhanced", {})
+        ids = d.get("identifiers")
+        dw_ids = d.get("dwIds")
+        enhanced = d.get("enhanced")
+        ids = ids if isinstance(ids, dict) else {}
+        dw_ids = dw_ids if isinstance(dw_ids, dict) else {}
+        enhanced = enhanced if isinstance(enhanced, dict) else {}
 
         ticker = (
             d.get("ticker")
@@ -116,7 +127,11 @@ class Reference:
         lei = d.get("lei") or ids.get("lei")
         ccy = d.get("ccy") or ids.get("ccy")
         mic = d.get("mic") or ids.get("mic")
-        is_primary = d.get("isPrimary") or enhanced.get("isPrimary")
+        is_primary = (
+            d["isPrimary"]
+            if "isPrimary" in d
+            else enhanced.get("isPrimary")
+        )
 
         return cls(
             ticker=ticker,
@@ -130,4 +145,6 @@ class Reference:
             company_info=CompanyInfo._from_dict(d.get("companyInfo")),
             security_info=SecurityInfo._from_dict(d.get("securityInfo")),
             raw=d,
+            company_id=d.get("companyId") or dw_ids.get("companyId"),
+            listing_id=d.get("listingId") or dw_ids.get("listingId"),
         )

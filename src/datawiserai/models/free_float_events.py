@@ -252,7 +252,9 @@ class EntityTypeHandling:
     entity_type_flip_policy: Optional[str] = None
 
     @classmethod
-    def _from_dict(cls, d: dict[str, Any] | None) -> Optional[EntityTypeHandling]:
+    def _from_dict(
+        cls, d: Optional[dict[str, Any]]
+    ) -> Optional[EntityTypeHandling]:
         if not d:
             return None
         return cls(
@@ -650,7 +652,9 @@ class EventDetails:
     raw: Optional[dict[str, Any]] = field(default=None, repr=False)
 
     @classmethod
-    def _from_dict(cls, d: dict[str, Any] | None) -> Optional[EventDetails]:
+    def _from_dict(
+        cls, d: Optional[dict[str, Any]]
+    ) -> Optional[EventDetails]:
         if not d:
             return None
 
@@ -890,7 +894,9 @@ class FreeFloatEventsDetail:
         """Distinct event dates, most-recent first."""
         return sorted({ev.as_of for ev in self.events}, reverse=True)
 
-    def by_date(self, as_of: date | str) -> FreeFloatEventDetail | None:
+    def by_date(
+        self, as_of: Union[date, str]
+    ) -> Optional[FreeFloatEventDetail]:
         """Look up the event for a specific date."""
         if isinstance(as_of, str):
             as_of = date.fromisoformat(as_of)
