@@ -153,8 +153,9 @@ test.
 
 ## 8. Commits and working tree
 
-The D4-H harness, focused tests, and this report are committed locally on
-`client-d4`. The validation commit hash is recorded by the follow-up
-documentation-only finalization commit at branch HEAD. The final working tree
-is clean. No push, merge, package rebuild, PyPI publication, deployment, or
-Production-default change was performed.
+The D4-H harness, focused tests, and initial report are committed locally as
+`1974c948e8615a87a2844920f5c33db35cdb3edc` (`Validate installed D4 client
+against Preview`). The follow-up documentation-only commit containing this
+exact record is branch HEAD. The final working tree is clean. No push, merge,
+package rebuild, PyPI publication, deployment, or Production-default change
+was performed.
