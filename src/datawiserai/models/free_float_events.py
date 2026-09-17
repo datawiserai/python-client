@@ -46,7 +46,12 @@ def expand_free_float_events_payload(payload: dict[str, Any]) -> dict[str, Any]:
             for key, value in (event.get(field) or {}).items():
                 state[field][key] = deepcopy(value)
 
-            expanded[field] = deepcopy(state[field])
+            # The legacy full producer omits empty owner-identity maps.
+            # Other delta maps retain their existing empty-state representation.
+            if field == "ownerIdentitiesMap" and not state[field]:
+                expanded.pop(field, None)
+            else:
+                expanded[field] = deepcopy(state[field])
             expanded.pop(delete_field, None)
 
         expanded_events.append(expanded)
