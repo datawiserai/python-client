@@ -414,6 +414,119 @@ notebook that walk through every endpoint:
 - **[`quickstart.py`](examples/quickstart.py)** - command-line script
 - **[`quickstart.ipynb`](examples/quickstart.ipynb)** - interactive notebook
 - **[`d4_later_smoke.py`](examples/d4_later_smoke.py)** - later, manual hosted conditional-cache smoke test
+- **[`company_relationships.py`](examples/company_relationships.py)** - company disclosures, local views and company reference
+
+## Company relationships
+
+The company-based paid dataset uses real, case-sensitive Datawiser company IDs:
+
+```python
+relationships = client.company_relationships("REAL_COMPANY_ID")
+
+# Local views: these make no additional API requests.
+suppliers = relationships.suppliers(status="current")
+customers = relationships.customers(status="current")
+competitors = relationships.competitors(directness="direct")
+partners = relationships.partners()
+
+# Filters combine and can be chained; omitted criteria keep every published value.
+selected = relationships.filter(role="supplier", status="current", directness="direct")
+assertions = selected.to_dataframe()
+evidence = selected.evidence_dataframe()
+metrics = selected.metrics_dataframe()
+
+for assertion in selected:
+    print(assertion.view_relationship_type, assertion.reporting_company.company_id)
+    for metric in assertion.metrics:
+        print(metric.value, metric.basis_company_id)  # Decimal; original basis
+
+companies = client.universe("company-relationships")
+print(companies.company_ids)
+```
+
+`CompanyRelationships` includes incoming and outgoing disclosures, source evidence,
+and accepted financial metrics. `relationship_type` describes the original
+reporter's counterparty; `view_relationship_type` describes the requested company's
+counterparty. Reversing the view preserves the reporter and financial basis.
+The convenience methods and `filter(role=...)` use `view_relationship_type`.
+For example, a supplier's own disclosure naming the requested company as its
+customer appears in that company's supplier view. `company_id` identifies the
+requested company; `related_company_id` in the DataFrames consistently identifies
+the other endpoint. Original reporter/counterparty IDs and names remain available.
+
+Evidence/product text is untruncated. Latest-disclosed assertions can have current,
+historical, planned, terminated or unknown status. Discovery returns a
+`CompanyUniverse`, with company IDs and names, without requiring a listed security.
+Tickers and website slugs are not accepted as company lookup aliases. Observation
+IDs can change when upstream extraction is replaced. These are current published
+disclosures; filtering dates/statuses does not reconstruct historical knowledge or
+infer that a disclosed relationship is still active today.
+
+Filters return new local views. `len(view)` counts assertions, and iteration yields
+typed `CompanyRelationship` records. Chained filters narrow the existing view.
+`selection` still describes the server's publication policy, while `raw` retains
+the entire original server response, including assertions outside a local filter.
+
+Install the pandas extra for DataFrame methods. The three views have explicit
+grains and retain their column names even when empty:
+
+| Method | One row per | Detail |
+|---|---|---|
+| `to_dataframe()` | Assertion | Focused/related companies, original roles, scope, status, dates and document provenance |
+| `evidence_dataframe()` | Evidence passage | Full text, page/section/location, document URL and optional passage URL/tag |
+| `metrics_dataframe()` | Accepted metric | Exact `Decimal` value, raw value, qualifier, currency, period and original basis company |
+
+Multiple assertions about the same related company remain separate. Evidence and
+metrics join on `relationship_id` and `evidence_id`; their DataFrames do not create
+a passage-by-metric Cartesian product. Metric share fractions remain fractions,
+and monetary values retain their published currency. Date columns retain ISO
+strings. No automatic aggregation, float conversion or financial rebasing occurs.
+
+Data calls use the existing authenticated conditional cache flow: cached data
+never bypasses a server access check. Core and Index Intelligence both include
+this dataset through explicit v2 rights on Basic storage; Enterprise access is
+determined by the server. The SDK does not select plans or grant access. Filtering,
+iteration and DataFrame conversion do not make requests. Fetching company reference
+is a separate explicit request, with its own access check and potential quota use.
+
+For a listed company, resolve its company ID through existing security reference:
+
+```python
+security = client.reference("NVDA")
+if security.company_id is None:
+    raise ValueError("Security reference did not supply a company ID")
+relationships = client.company_relationships(security.company_id)
+```
+
+This adds one security-reference data request. Company discovery/direct IDs also
+support private companies with no ticker. The SDK does not automatically fetch
+reference records for every related company.
+
+## Company reference
+
+```python
+reference = client.company_reference("REAL_COMPANY_ID")  # explicit supporting-data request
+print(reference.company_id, reference.company_name, reference.lei)
+for security in reference.securities:
+    print(security.security_id, security.name, security.primary_ticker, security.security_type)
+
+companies = client.universe("company-reference")
+print(companies.company_ids)
+```
+
+`CompanyReference` returns current company name/LEI and zero or more eligible
+`CompanyReferenceSecurity` records. Companies can have no eligible security; names,
+LEIs, tickers and types can be absent. `to_dataframe()` returns one row per eligible
+security. This method accepts exact Datawiser company IDs, without ticker or public
+slug resolution. It uses a separate cache namespace from security reference and
+relationships, with a server access/ETag check on each data call. Enterprise or an
+explicit v2 `company-reference` right is required. Both Core and Index Intelligence
+include it. Missing data and denied access retain the existing typed client errors;
+an empty securities list is a valid company record.
+
+The runnable [company example](examples/company_relationships.py) accepts either
+`--company-id REAL_COMPANY_ID` or `--ticker NVDA`, plus an optional `--status`.
+It fetches relationships and company reference explicitly, then explores local views.
 
 ## Repository
 

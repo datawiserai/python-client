@@ -35,8 +35,14 @@ from .models.free_float_events import (
 from .models.reference import CompanyInfo, Reference, SecurityInfo
 from .models.shares_outstanding import SharesOutstanding, SharesOutstandingEvent
 from .models.universe import Universe, UniverseEntry
+from .models.company_relationships import (CompanyRelationships, CompanyRelationship, RelationshipCompany,
+    RelationshipEvidence, RelationshipMetric, CompanyUniverse, CompanyUniverseEntry)
+from .models.company_reference import CompanyReference, CompanyReferenceSecurity
 
 __all__ = [
+    "CompanyReference", "CompanyReferenceSecurity",
+    "CompanyRelationships", "CompanyRelationship", "RelationshipCompany", "RelationshipEvidence",
+    "RelationshipMetric", "CompanyUniverse", "CompanyUniverseEntry",
     "Client",
     "AmbiguousTickerError",
     "CompanyInfo",
@@ -76,4 +82,4 @@ __all__ = [
     "UniverseEntry",
 ]
 
-__version__ = "1.1.1"
+__version__ = "1.2.0"

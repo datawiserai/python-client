@@ -25,6 +25,8 @@ from .models.free_float_events import FreeFloatEvents, FreeFloatEventsDetail
 from .models.reference import Reference
 from .models.shares_outstanding import SharesOutstanding
 from .models.universe import Universe
+from .models.company_relationships import CompanyRelationships, CompanyUniverse
+from .models.company_reference import CompanyReference
 
 logger = logging.getLogger("datawiserai")
 
@@ -32,13 +34,16 @@ _DEFAULT_CACHE_DIR = Path.home() / ".datawiserai" / "cache"
 _DEFAULT_MANIFEST_TTL = 300.0
 _DEFAULT_CACHE_MAX_BYTES = 256 * 1024 * 1024
 _DEFAULT_CACHE_MAX_ENTRIES = 2_000
-_CONDITIONAL_ENDPOINTS = frozenset(("shares-outstanding", "reference"))
+_COMPANY_ENDPOINTS = frozenset(("company-relationships", "company-reference"))
+_CONDITIONAL_ENDPOINTS = frozenset(("shares-outstanding", "reference")) | _COMPANY_ENDPOINTS
 
 ENDPOINTS = (
     "free-float",
     "free-float-events",
     "shares-outstanding",
     "reference",
+    "company-relationships",
+    "company-reference",
 )
 
 _ALIAS = {ep.replace("-", "_"): ep for ep in ENDPOINTS}
@@ -258,6 +263,10 @@ class Client:
                 # Both established views must remain constructible from a
                 # representation before that representation enters the cache.
                 FreeFloatEventsDetail._from_dict(data)
+            elif endpoint == "company-relationships":
+                model = CompanyRelationships._from_dict(data)
+            elif endpoint == "company-reference":
+                model = CompanyReference._from_dict(data)
             else:  # pragma: no cover - guarded by _checked_endpoint
                 raise ValueError("unsupported dataset")
         except (AttributeError, KeyError, TypeError, ValueError) as exc:
@@ -266,10 +275,10 @@ class Client:
                 possibly_charged=True,
             ) from exc
 
-        security_id = model.security_id
+        security_id = model.company_id if endpoint in _COMPANY_ENDPOINTS else model.security_id
         if not isinstance(security_id, str) or not security_id:
             raise DatawiserResponseError(
-                f"The API returned {endpoint} data without a securityId.",
+                f"The API returned {endpoint} data without a durable identity.",
                 possibly_charged=True,
             )
         return security_id
@@ -284,6 +293,8 @@ class Client:
     ) -> dict[str, Any]:
         data = response.data
         security_id = self._validate_payload(endpoint, data)
+        if endpoint in _COMPANY_ENDPOINTS and security_id != identifier:
+            raise DatawiserResponseError("The API returned data for a different company.", possibly_charged=True)
         etag = response.etag if is_valid_etag(response.etag) else None
         if endpoint in _CONDITIONAL_ENDPOINTS and etag is None:
             self._diagnostics["responses_without_etag"] += 1
@@ -492,31 +503,47 @@ class Client:
     # universe
     # ------------------------------------------------------------------
 
-    def universe(self, endpoint: str, *, refresh: bool = False) -> Universe:
-        """Return the set of available tickers for *endpoint*.
+    def universe(self, endpoint: str, *, refresh: bool = False) -> Union[Universe, CompanyUniverse]:
+        """Return the available securities or companies for *endpoint*.
 
         Parameters
         ----------
         endpoint : str
             One of ``'free-float'``, ``'free-float-events'``,
-            ``'shares-outstanding'``, or ``'reference'``.
+            ``'shares-outstanding'``, ``'reference'``, ``'company-relationships'``,
+            or ``'company-reference'``.
             Underscore variants (e.g. ``'free_float'``) are also accepted.
         refresh : bool
             If *True*, bypass cached discovery metadata for this call.
 
         Returns
         -------
-        Universe
-            Object with ``.tickers``, ``.to_dataframe()``, and ``in``
-            membership testing.
+        Universe or CompanyUniverse
+            Security datasets expose ``.tickers``; company datasets expose
+            ``.company_ids``. Both support ``.to_dataframe()`` and membership.
         """
         endpoint = _checked_endpoint(endpoint)
         manifest = self._get_manifest(endpoint, refresh=refresh)
+        if endpoint in _COMPANY_ENDPOINTS:
+            return CompanyUniverse._from_manifest(endpoint, manifest)
         return Universe._from_manifest(endpoint, manifest)
 
     # ------------------------------------------------------------------
     # endpoint methods
     # ------------------------------------------------------------------
+
+    def company_relationships(self, company_id: str) -> CompanyRelationships:
+        """Fetch latest disclosures involving an exact, case-sensitive company ID.
+
+        Every call checks server access. Includes incoming disclosures, source
+        evidence and accepted metrics; metric values decode as Decimal. The
+        returned object's role/status filters and DataFrames are local operations.
+        """
+        return CompanyRelationships._from_dict(self._fetch("company-relationships", company_id))
+
+    def company_reference(self, company_id: str) -> CompanyReference:
+        """Fetch company name, LEI and zero or more securities by exact company ID."""
+        return CompanyReference._from_dict(self._fetch("company-reference", company_id))
 
     def free_float(self, ticker: str) -> FreeFloat:
         """Fetch free-float data for *ticker*.

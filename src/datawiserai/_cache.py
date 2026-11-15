@@ -309,7 +309,7 @@ class FileCache:
             raise ValueError("security_id must not be empty")
         if not isinstance(data, dict):
             raise TypeError("data must be a dictionary")
-        if _payload_security_id(data) != security_id:
+        if _payload_security_id(data, dataset_sha256=_component_digest("dataset", dataset)) != security_id:
             raise ValueError("security_id does not match the response payload")
         if source_last_update is not None:
             source_last_update = _bounded_text(
@@ -676,7 +676,7 @@ class FileCache:
         if not _valid_timestamp(envelope.get("created_at")):
             return False
         data = envelope.get("data")
-        if not isinstance(data, dict) or _payload_security_id(data) != security_id:
+        if not isinstance(data, dict) or _payload_security_id(data, dataset_sha256=dataset_sha256) != security_id:
             return False
         try:
             actual_sha256 = hashlib.sha256(_canonical_json_bytes(data)).hexdigest()
@@ -1106,8 +1106,13 @@ def _valid_timestamp(value: Any) -> bool:
     )
 
 
-def _payload_security_id(data: dict[str, Any]) -> Optional[str]:
-    """Mirror the supported response models' security-ID locations."""
+def _payload_security_id(data: dict[str, Any], *, dataset_sha256: Optional[str] = None) -> Optional[str]:
+    """Read the dataset's durable identity; existing cache field names stay compatible."""
+
+    if dataset_sha256 in {_component_digest("dataset", ds) for ds in ("company-relationships", "company-reference")}:
+        company = data.get("company")
+        identity = company.get("companyId") if isinstance(company, dict) else None
+        return identity if isinstance(identity, str) and identity else None
 
     direct = data.get("securityId")
     if isinstance(direct, str) and direct:
